@@ -76,7 +76,7 @@ class BulkFeatureGenerator(AbstractFeatureGenerator):
         super().__init__(**kwargs)
         if not isinstance(generators, list):
             generators = [[generators]]
-        elif len(generators) == 0:
+        elif not generators:
             raise AssertionError('generators must contain at least one AbstractFeatureGenerator.')
         generators = [generator_group if isinstance(generator_group, list) else [generator_group] for generator_group in generators]
         if pre_generators is None:
@@ -144,29 +144,26 @@ class BulkFeatureGenerator(AbstractFeatureGenerator):
         # Remove useless generators
         # TODO: consider moving to self._remove_features_out
         for i in range(len(self.generators)):
-            generator_group_valid = []
-            for j in range(len(self.generators[i])):
-                if self.generators[i][j].features_out:
-                    generator_group_valid.append(self.generators[i][j])
+            generator_group_valid = [
+                self.generators[i][j]
+                for j in range(len(self.generators[i]))
+                if self.generators[i][j].features_out
+            ]
+
             self.generators[i] = generator_group_valid
 
         return X, feature_metadata.type_group_map_special
 
     def _transform(self, X: DataFrame) -> DataFrame:
         for generator_group in self.generators:
-            feature_df_list = []
-            for generator in generator_group:
-                feature_df_list.append(generator.transform(X))
-
+            feature_df_list = [generator.transform(X) for generator in generator_group]
             if not feature_df_list:
                 X = DataFrame(index=X.index)
             elif len(feature_df_list) == 1:
                 X = feature_df_list[0]
             else:
                 X = pd.concat(feature_df_list, axis=1, ignore_index=False, copy=False)
-        X_out = X
-
-        return X_out
+        return X
 
     def get_feature_links_chain(self):
         feature_links_chain = []
@@ -196,7 +193,14 @@ class BulkFeatureGenerator(AbstractFeatureGenerator):
         for i, generator_group in enumerate(self.generators):
             unused_features_in_stage = unused_features_by_stage[i]
             unused_features_out_stage = [feature_links_chain[i][feature_in] for feature_in in unused_features_in_stage if feature_in in feature_links_chain[i]]
-            unused_features_out_stage = list(set([feature for sublist in unused_features_out_stage for feature in sublist]))
+            unused_features_out_stage = list(
+                {
+                    feature
+                    for sublist in unused_features_out_stage
+                    for feature in sublist
+                }
+            )
+
             for generator in generator_group:
                 unused_features_out_generator = [feature for feature in generator.features_out if feature in unused_features_out_stage]
                 generator._remove_features_out(features=unused_features_out_generator)

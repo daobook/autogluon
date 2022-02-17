@@ -15,10 +15,7 @@ def get_parser():
 def get_test_index(path):
     with open(path, 'r', encoding='utf-8') as in_f:
         lines = in_f.readlines()
-    index_l = []
-    for i in range(1, len(lines)):
-        index_l.append(lines[i].split()[0])
-    return index_l
+    return [lines[i].split()[0] for i in range(1, len(lines))]
 
 
 def main(args):

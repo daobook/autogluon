@@ -72,7 +72,7 @@ def scheduler_factory(
         By default in scheduler_params: time_attr='epoch', reward_attr='validation_performance'
     """
     if hyperparameter_tune_kwargs is None:
-        raise ValueError(f"hyperparameter_tune_kwargs cannot be None.")
+        raise ValueError('hyperparameter_tune_kwargs cannot be None.')
     if isinstance(hyperparameter_tune_kwargs, str):
         hyperparameter_tune_kwargs = get_hyperparameter_tune_kwargs_preset(hyperparameter_tune_kwargs)
     if not isinstance(hyperparameter_tune_kwargs, dict):

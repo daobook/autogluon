@@ -85,16 +85,15 @@ def train(args):
     train_df = train_df[feature_columns + [label_column]]
     dev_df = dev_df[feature_columns + [label_column]]
     test_df = test_df[feature_columns]
-    if args.task == 'mrpc' or args.task == 'sts':
+    if args.task in ['mrpc', 'sts']:
         # Augmenting the un-ordered set manually.
         train_df_other_part = pd.DataFrame({feature_columns[0]: train_df[feature_columns[1]],
                                             feature_columns[1]: train_df[feature_columns[0]],
                                             label_column: train_df[label_column]})
         real_train_df = pd.concat([train_df, train_df_other_part])
-        real_dev_df = dev_df
     else:
         real_train_df = train_df
-        real_dev_df = dev_df
+    real_dev_df = dev_df
     if args.mode == 'stacking':
         predictor = TabularPredictor(label=label_column,
                                      eval_metric=eval_metric,

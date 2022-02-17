@@ -66,22 +66,20 @@ def searcher_factory(searcher_name, **kwargs):
     GPFIFOSearcher
     GPMultiFidelitySearcher
     """
-    if searcher_name in SEARCHER_CONFIGS:
-        searcher_config = SEARCHER_CONFIGS[searcher_name]
-        searcher_cls = searcher_config['searcher_cls']
-        scheduler = kwargs.get('scheduler')
-
-        # Check if searcher_cls is a lambda - evaluate then
-        if isinstance(searcher_cls, type(lambda: 0)):
-            searcher_cls = searcher_cls(scheduler)
-
-        if 'supported_schedulers' in searcher_config:
-            supported_schedulers = searcher_config['supported_schedulers']
-            assert scheduler is not None, "Scheduler must set search_options['scheduler']"
-            assert scheduler in supported_schedulers, \
-                f"Searcher '{searcher_name}' only works with schedulers {supported_schedulers} (not with '{scheduler}')"
-
-        searcher = searcher_cls(**kwargs)
-        return searcher
-    else:
+    if searcher_name not in SEARCHER_CONFIGS:
         raise AssertionError(f'searcher \'{searcher_name}\' is not supported')
+    searcher_config = SEARCHER_CONFIGS[searcher_name]
+    searcher_cls = searcher_config['searcher_cls']
+    scheduler = kwargs.get('scheduler')
+
+    # Check if searcher_cls is a lambda - evaluate then
+    if isinstance(searcher_cls, type(lambda: 0)):
+        searcher_cls = searcher_cls(scheduler)
+
+    if 'supported_schedulers' in searcher_config:
+        supported_schedulers = searcher_config['supported_schedulers']
+        assert scheduler is not None, "Scheduler must set search_options['scheduler']"
+        assert scheduler in supported_schedulers, \
+            f"Searcher '{searcher_name}' only works with schedulers {supported_schedulers} (not with '{scheduler}')"
+
+    return searcher_cls(**kwargs)

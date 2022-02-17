@@ -131,22 +131,20 @@ class FastTextModel(AbstractModel):
     def predict(self, X: pd.DataFrame, **kwargs) -> np.ndarray:
         X = self.preprocess(X, **kwargs)
         pred_labels, pred_probs = self.model.predict(X)
-        y_pred = np.array(
+        return np.array(
             [self._label_inv_map[labels[0]] for labels in pred_labels],
             dtype=self._label_dtype,
         )
-        return y_pred
 
     def _predict_proba(self, X: pd.DataFrame, **kwargs) -> np.ndarray:
         X = self.preprocess(X, **kwargs)
 
         pred_labels, pred_probs = self.model.predict(X, k=len(self.model.labels))
 
-        recs = []
-        for labels, probs in zip(pred_labels, pred_probs):
-            recs.append(
-                dict(zip((self._label_inv_map[label] for label in labels), probs))
-            )
+        recs = [
+            dict(zip((self._label_inv_map[label] for label in labels), probs))
+            for labels, probs in zip(pred_labels, pred_probs)
+        ]
 
         y_pred_proba: np.ndarray = pd.DataFrame(recs).sort_index(axis=1).values
         return self._convert_proba_to_unified_form(y_pred_proba)

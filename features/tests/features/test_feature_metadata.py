@@ -180,7 +180,7 @@ def test_feature_metadata_get_features():
 
     # Assert that valid_raw_types is the opposite of invalid_raw_types through all combinations
     raw_types_to_check = ['1', '2', '3', '4', 'UNKNOWN']
-    for L in range(0, len(raw_types_to_check) + 1):
+    for L in range(len(raw_types_to_check) + 1):
         for subset in itertools.combinations(raw_types_to_check, L):
             valid_raw_types = list(subset)
             invalid_raw_types = [raw_type for raw_type in raw_types_to_check if raw_type not in valid_raw_types]

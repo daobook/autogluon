@@ -26,16 +26,12 @@ def save(path, df, index=False, verbose=True, type=None, sep=',', compression='g
             type = 'parquet'
         else:
             type = 'csv'
-    if 's3' not in path[:2]:
-        is_local = True
-    else:
-        is_local = False
+    is_local = 's3' not in path[:2]
     column_count = len(list(df.columns.values))
     row_count = df.shape[0]
     if is_local:
         path_abs = os.path.abspath(path)
-        path_abs_dirname = os.path.dirname(path_abs)
-        if path_abs_dirname:
+        if path_abs_dirname := os.path.dirname(path_abs):
             os.makedirs(path_abs_dirname, exist_ok=True)
     if type == 'csv':
         if is_local:
@@ -47,14 +43,24 @@ def save(path, df, index=False, verbose=True, type=None, sep=',', compression='g
             s3_resource = boto3.resource('s3')
             s3_resource.Object(bucket, prefix).put(Body=buffer.getvalue(), ACL='bucket-owner-full-control')
         if verbose:
-            logger.log(15, "Saved " +str(path)+" | Columns = "+str(column_count)+" | Rows = "+str(row_count))
+            logger.log(
+                15,
+                f'Saved {str(path)} | Columns = {column_count} | Rows = '
+                + str(row_count),
+            )
+
     elif type == 'parquet':
         try:
             df.to_parquet(path, compression=compression, engine='fastparquet')  # TODO: Might be slower than pyarrow in multiprocessing
         except:
             df.to_parquet(path, compression=compression, engine='pyarrow')
         if verbose:
-            logger.log(15, "Saved "+str(path)+" | Columns = "+str(column_count)+" | Rows = "+str(row_count))
+            logger.log(
+                15,
+                f'Saved {str(path)} | Columns = {column_count} | Rows = '
+                + str(row_count),
+            )
+
     elif type == 'multipart_s3':
         bucket, prefix = s3_utils.s3_path_to_bucket_prefix(s3_path=path)
         s3_utils.delete_s3_prefix(bucket=bucket, prefix=prefix)  # TODO: Might only delete the first 1000!
@@ -70,7 +76,7 @@ def save(path, df, index=False, verbose=True, type=None, sep=',', compression='g
                     logger.exception(e)
         save_multipart(path=path, df=df, index=index, verbose=verbose, type='parquet', sep=sep, compression=compression, header=header, json_dump_columns=None)
     else:
-        raise Exception('Unknown save type: ' + type)
+        raise Exception(f'Unknown save type: {type}')
 
 
 def save_multipart_child(chunk):
@@ -83,15 +89,22 @@ def save_multipart(path, df, index=False, verbose=True, type=None, sep=',', comp
     workers_count = int(round(cpu_count))
     parts = workers_count
 
-    logger.log(15, 'Save_multipart running pool with '+str(workers_count)+' workers')
+    logger.log(15, f'Save_multipart running pool with {parts} workers')
+    paths = [
+        f'{path}part-' + '0' * (5 - min(5, len(str(i)))) + str(i) + '.parquet'
+        for i in range(parts)
+    ]
 
-    paths = [path + 'part-' + '0' * (5 - min(5, len(str(i)))) + str(i) + '.parquet' for i in range(parts)]
     df_parts = np.array_split(df, parts)
 
     full_chunks = [[
         path, df_part, index, verbose, type, sep, compression, header, json_dump_columns,
     ] for path, df_part in zip(paths, df_parts)]
 
-    multiprocessing_utils.execute_multiprocessing(workers_count=workers_count, transformer=save_multipart_child, chunks=full_chunks)
+    multiprocessing_utils.execute_multiprocessing(
+        workers_count=parts,
+        transformer=save_multipart_child,
+        chunks=full_chunks,
+    )
 
-    logger.log(15, "Saved multipart file to "+str(path))
+    logger.log(15, f'Saved multipart file to {str(path)}')

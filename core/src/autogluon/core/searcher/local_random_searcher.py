@@ -24,7 +24,7 @@ class LocalRandomSearcher(LocalSearcher):
         self._params_space = self._get_params_space()
 
     def _get_params_space(self) -> dict:
-        param_space = dict()
+        param_space = {}
         for key, val in self.search_space.items():
             if isinstance(val, Space):
                 sk = val.convert_to_sklearn()

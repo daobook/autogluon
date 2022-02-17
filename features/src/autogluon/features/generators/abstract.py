@@ -144,9 +144,10 @@ class AbstractFeatureGenerator:
             from .rename import RenameFeatureGenerator
             self._post_generators.append(RenameFeatureGenerator(name_prefix=name_prefix, name_suffix=name_suffix, inplace=True))
 
-        if self._post_generators:
-            if not self.get_tags().get('allow_post_generators', True):
-                raise AssertionError(f'{self.__class__.__name__} is not allowed to have post_generators, but found: {[generator.__class__.__name__ for generator in self._post_generators]}')
+        if self._post_generators and not self.get_tags().get(
+            'allow_post_generators', True
+        ):
+            raise AssertionError(f'{self.__class__.__name__} is not allowed to have post_generators, but found: {[generator.__class__.__name__ for generator in self._post_generators]}')
 
         self.pre_enforce_types = pre_enforce_types
         self._pre_astype_generator = None
@@ -219,7 +220,7 @@ class AbstractFeatureGenerator:
             X.columns = X.columns.astype(str)  # Ensure all column names are strings
             columns_new = list(X.columns)
             if columns_orig != columns_new:
-                rename_map = {orig: new for orig, new in zip(columns_orig, columns_new)}
+                rename_map = dict(zip(columns_orig, columns_new))
                 if feature_metadata_in is not None:
                     feature_metadata_in.rename_features(rename_map=rename_map)
                 self._rename_features_in(rename_map)
@@ -292,10 +293,7 @@ class AbstractFeatureGenerator:
         try:
             X = X[self.features_in]
         except KeyError:
-            missing_cols = []
-            for col in self.features_in:
-                if col not in X.columns:
-                    missing_cols.append(col)
+            missing_cols = [col for col in self.features_in if col not in X.columns]
             raise KeyError(f'{len(missing_cols)} required columns are missing from the provided dataset to transform using {self.__class__.__name__}. Missing columns: {missing_cols}')
         if self._pre_astype_generator:
             X = self._pre_astype_generator.transform(X)
@@ -376,7 +374,11 @@ class AbstractFeatureGenerator:
         elif feature_metadata_in is not None:
             self._log(30, '\tWarning: feature_metadata_in passed as input to fit_transform, but self.feature_metadata_in was already set. Ignoring feature_metadata_in.')
         if self.feature_metadata_in is None:
-            self._log(20, f'\tInferring data type of each feature based on column values. Set feature_metadata_in to manually specify special dtypes of the features.')
+            self._log(
+                20,
+                '\tInferring data type of each feature based on column values. Set feature_metadata_in to manually specify special dtypes of the features.',
+            )
+
             self.feature_metadata_in = self._infer_feature_metadata_in(X=X)
         if self.features_in is None:
             self.features_in = self._infer_features_in(X=X)
@@ -462,20 +464,21 @@ class AbstractFeatureGenerator:
         features : list of str
             List of feature names to remove from the expected input.
         """
-        if features:
-            if self._feature_metadata_before_post:
-                feature_links_chain = self.get_feature_links_chain()
-                for feature in features:
-                    feature_links_chain[0].pop(feature)
-                features_to_keep = set()
-                for features_out in feature_links_chain[0].values():
-                    features_to_keep = features_to_keep.union(features_out)
-                self._feature_metadata_before_post = self._feature_metadata_before_post.keep_features(features_to_keep)
+        if not features:
+            return
+        if self._feature_metadata_before_post:
+            feature_links_chain = self.get_feature_links_chain()
+            for feature in features:
+                feature_links_chain[0].pop(feature)
+            features_to_keep = set()
+            for features_out in feature_links_chain[0].values():
+                features_to_keep = features_to_keep.union(features_out)
+            self._feature_metadata_before_post = self._feature_metadata_before_post.keep_features(features_to_keep)
 
-            self.feature_metadata_in = self.feature_metadata_in.remove_features(features=features)
-            self.features_in = self.feature_metadata_in.get_features()
-            if self._pre_astype_generator:
-                self._pre_astype_generator._remove_features_out(features)
+        self.feature_metadata_in = self.feature_metadata_in.remove_features(features=features)
+        self.features_in = self.feature_metadata_in.get_features()
+        if self._pre_astype_generator:
+            self._pre_astype_generator._remove_features_out(features)
 
     # TODO: Ensure arbitrary feature removal does not result in inconsistencies (add unit test)
     def _remove_features_out(self, features: list):
@@ -520,9 +523,12 @@ class AbstractFeatureGenerator:
         """
         Any data validation checks prior to fitting the data should be done here.
         """
-        if y is not None and isinstance(y, Series):
-            if list(y.index) != list(X.index):
-                raise AssertionError(f'y.index and X.index must be equal when fitting {self.__class__.__name__}, but they differ.')
+        if (
+            y is not None
+            and isinstance(y, Series)
+            and list(y.index) != list(X.index)
+        ):
+            raise AssertionError(f'y.index and X.index must be equal when fitting {self.__class__.__name__}, but they differ.')
 
     def _post_fit_cleanup(self):
         """
@@ -534,29 +540,19 @@ class AbstractFeatureGenerator:
     def _ensure_no_duplicate_column_names(self, X: DataFrame):
         if len(X.columns) != len(set(X.columns)):
             count_dict = defaultdict(int)
-            invalid_columns = []
             for column in list(X.columns):
                 count_dict[column] += 1
-            for column in count_dict:
-                if count_dict[column] > 1:
-                    invalid_columns.append(column)
+            invalid_columns = [column for column, value in count_dict.items() if value > 1]
             raise AssertionError(f'Columns appear multiple times in X. Columns must be unique. Invalid columns: {invalid_columns}')
 
     # TODO: Move to a generator
     @staticmethod
     def _get_useless_features(X: DataFrame) -> list:
-        useless_features = []
-        for column in X:
-            if is_useless_feature(X[column]):
-                useless_features.append(column)
-        return useless_features
+        return [column for column in X if is_useless_feature(X[column])]
 
     # TODO: Consider adding _log and verbosity methods to mixin
     def set_log_prefix(self, log_prefix, prepend=False):
-        if prepend:
-            self.log_prefix = log_prefix + self.log_prefix
-        else:
-            self.log_prefix = log_prefix
+        self.log_prefix = log_prefix + self.log_prefix if prepend else log_prefix
 
     def set_verbosity(self, verbosity: int):
         self.verbosity = verbosity
@@ -581,11 +577,11 @@ class AbstractFeatureGenerator:
             For example, if only numeric features are passed as input to TextSpecialFeatureGenerator which requires text input features, this will return False.
             However, if both numeric and text features are passed, this will return True since the text features would be valid input (the numeric features would simply be dropped).
         """
-        features_in = feature_metadata_in.get_features(**self._infer_features_in_args)
-        if features_in:
-            return True
-        else:
-            return False
+        return bool(
+            features_in := feature_metadata_in.get_features(
+                **self._infer_features_in_args
+            )
+        )
 
     def get_feature_links(self) -> Dict[str, List[str]]:
         """Returns feature links including all pre and post generators."""
@@ -658,14 +654,15 @@ class AbstractFeatureGenerator:
             stage = len(feature_links_chain) - i
             used_features = set()
             for key in chain.keys():
-                new_val = [val for val in chain[key] if val not in unused_features]
-                if new_val:
+                if new_val := [
+                    val for val in chain[key] if val not in unused_features
+                ]:
                     used_features.add(key)
             features_in = features_in_list[stage - 1]
-            unused_features = []
-            for feature in features_in:
-                if feature not in used_features:
-                    unused_features.append(feature)
+            unused_features = [
+                feature for feature in features_in if feature not in used_features
+            ]
+
             unused_features_by_stage.append(unused_features)
         unused_features_by_stage = list(reversed(unused_features_by_stage))
         return unused_features_by_stage

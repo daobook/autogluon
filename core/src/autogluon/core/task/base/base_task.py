@@ -43,8 +43,7 @@ class BaseTask(object):
         # gather the best configuration
         best_reward = scheduler.get_best_reward()
         best_config = scheduler.get_best_config()
-        best_config_run = {**best_config}
-        best_config_run['final_fit'] = True
+        best_config_run = {**best_config, 'final_fit': True}
         if hasattr(best_config_run, 'epochs') and hasattr(best_config_run, 'final_fit_epochs'):
             best_config_run['epochs'] = best_config_run['final_fit_epochs']
         scheduler_final = create_scheduler(train_fn, search_space, search_strategy, scheduler_options)
@@ -113,7 +112,7 @@ def compile_scheduler_options_v2(
 
     """
     if scheduler_options is None:
-        scheduler_options = dict()
+        scheduler_options = {}
     else:
         assert isinstance(scheduler_options, dict)
     scheduler_options = copy.copy(scheduler_options)
@@ -125,7 +124,7 @@ def compile_scheduler_options_v2(
         scheduler = 'local'
     assert isinstance(search_strategy, str)
     if search_options is None:
-        search_options = dict()
+        search_options = {}
     if visualizer is None:
         visualizer = 'none'
     if time_attr is None:
@@ -179,10 +178,8 @@ def compile_scheduler_options_v2(
         'visualizer',
         'dist_ip_addrs',
     ]
-    missing_options = []
-    for option in required_options:
-        if option not in scheduler_params:
-            missing_options.append(option)
-    if missing_options:
+    if missing_options := [
+        option for option in required_options if option not in scheduler_params
+    ]:
         raise AssertionError(f'Missing required keys in scheduler_options: {missing_options}')
     return scheduler_params

@@ -92,8 +92,7 @@ def check_and_merge_defaults(
     # Check constraints
     if constraints:
         for key, value in result_options.items():
-            check = constraints.get(key)
-            if check:
+            if check := constraints.get(key):
                 check.assert_valid(prefix + "Key '{}'".format(key), value)
 
     return result_options

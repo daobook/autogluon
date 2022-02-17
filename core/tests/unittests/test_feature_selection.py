@@ -73,7 +73,7 @@ def test_merge_importance_dfs_all(sample_features, sample_importance_df_1, sampl
     result_df = merge_importance_dfs(prev_df, curr_df, using_prev_fit_fi=using_prev_fit_fi).sort_index()
     assert [score if score == score else None for score in result_df['importance'].tolist()] == [-0.1, 0., 0.1, 1., None]
     assert result_df['n'].tolist() == [5, 15, 10, 5, 0]
-    assert using_prev_fit_fi == set()
+    assert not using_prev_fit_fi
 
 
 def test_sort_features_by_priority_base(sample_features):

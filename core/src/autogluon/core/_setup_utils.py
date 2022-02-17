@@ -70,7 +70,7 @@ def update_version(version, use_file_if_exists=True, create_file=False):
 
 
 def create_version_file(*, version, submodule):
-    print('-- Building version ' + version)
+    print(f'-- Building version {version}')
     if submodule is not None:
         version_path = os.path.join(AUTOGLUON_ROOT_PATH, submodule, 'src', AUTOGLUON, submodule, 'version.py')
     else:
@@ -83,11 +83,8 @@ def create_version_file(*, version, submodule):
 def default_setup_args(*, version, submodule):
     from setuptools import find_packages
     long_description = open(os.path.join(AUTOGLUON_ROOT_PATH, 'README.md')).read()
-    if submodule is None:
-        name = AUTOGLUON
-    else:
-        name = f'{AUTOGLUON}.{submodule}'
-    setup_args = dict(
+    name = AUTOGLUON if submodule is None else f'{AUTOGLUON}.{submodule}'
+    return dict(
         name=name,
         version=version,
         author='AutoGluon Community',
@@ -97,7 +94,6 @@ def default_setup_args(*, version, submodule):
         long_description_content_type='text/markdown',
         license='Apache-2.0',
         license_files=('../LICENSE', '../NOTICE'),
-
         # Package info
         packages=find_packages('src'),
         package_dir={'': 'src'},
@@ -105,9 +101,11 @@ def default_setup_args(*, version, submodule):
         zip_safe=True,
         include_package_data=True,
         python_requires=PYTHON_REQUIRES,
-        package_data={AUTOGLUON: [
-            'LICENSE',
-        ]},
+        package_data={
+            AUTOGLUON: [
+                'LICENSE',
+            ]
+        },
         classifiers=[
             "Development Status :: 4 - Beta",
             "Intended Audience :: Education",
@@ -138,4 +136,3 @@ def default_setup_args(*, version, submodule):
             'Contribute!': 'https://github.com/awslabs/autogluon/blob/master/CONTRIBUTING.md',
         },
     )
-    return setup_args

@@ -23,7 +23,7 @@ class LocalGridSearcher(LocalSearcher):
         self._grid_length = len(self._params_grid)
 
     def _get_params_space(self) -> dict:
-        param_space = dict()
+        param_space = {}
         for key, val in self.search_space.items():
             if isinstance(val, Space):
                 if not isinstance(val, Categorical):

@@ -184,8 +184,9 @@ class ImagePredictorModel(AbstractModel):
     def _get_default_searchspace(self):
         try_import_autogluon_vision()
         from autogluon.vision.configs import presets_configs
-        searchspace = presets_configs.preset_image_predictor['good_quality_fast_inference']['hyperparameters']
-        return searchspace
+        return presets_configs.preset_image_predictor[
+            'good_quality_fast_inference'
+        ]['hyperparameters']
 
     def save(self, path: str = None, verbose=True) -> str:
         self._load_model = self.model is not None

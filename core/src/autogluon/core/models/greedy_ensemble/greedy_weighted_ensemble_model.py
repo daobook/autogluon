@@ -91,12 +91,21 @@ class GreedyWeightedEnsembleModel(AbstractModel):
 
     def _set_stack_columns(self, base_model_names):
         if self.problem_type in [MULTICLASS, SOFTCLASS]:
-            stack_columns = [model_name + '_' + str(cls) for model_name in base_model_names for cls in range(self.num_classes)]
+            return [
+                f'{model_name}_{str(cls)}'
+                for model_name in base_model_names
+                for cls in range(self.num_classes)
+            ]
+
         elif self.problem_type == QUANTILE:
-            stack_columns = [model_name + '_' + str(q) for model_name in base_model_names for q in self.quantile_levels]
+            return [
+                f'{model_name}_{str(q)}'
+                for model_name in base_model_names
+                for q in self.quantile_levels
+            ]
+
         else:
-            stack_columns = base_model_names
-        return stack_columns
+            return base_model_names
 
     def _infer_base_model_names(self):
         stack_column_names = self.feature_metadata.get_features(required_special_types=[S_STACK])
@@ -104,18 +113,16 @@ class GreedyWeightedEnsembleModel(AbstractModel):
         if self.problem_type == QUANTILE:
             columns_class_0 = [column for column in stack_column_names if
                                column.endswith('_{}'.format(str(self.quantile_levels[0])))]
-            base_model_names = [column.rsplit('_', 1)[0] for column in columns_class_0]
+            return [column.rsplit('_', 1)[0] for column in columns_class_0]
         elif self.num_pred_cols_per_model > 1:
             columns_class_0 = [column for column in stack_column_names if column.endswith('_0')]
-            base_model_names = [column[:-2] for column in columns_class_0]
+            return [column[:-2] for column in columns_class_0]
         else:
-            base_model_names = stack_column_names
-        return base_model_names
+            return stack_column_names
 
     def _get_model_weights(self):
         num_models = len(self.base_model_names)
-        model_weight_dict = {self.base_model_names[i]: self.weights_[i] for i in range(num_models)}
-        return model_weight_dict
+        return {self.base_model_names[i]: self.weights_[i] for i in range(num_models)}
 
     def get_info(self):
         info = super().get_info()

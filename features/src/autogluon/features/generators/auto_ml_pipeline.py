@@ -88,7 +88,10 @@ class AutoMLPipelineFeatureGenerator(PipelineFeatureGenerator):
             raise KeyError(f'generators is not a valid parameter to {self.__class__.__name__}. Use {PipelineFeatureGenerator.__name__} to specify custom generators.')
         if 'enable_raw_features' in kwargs:
             enable_numeric_features = kwargs.pop('enable_raw_features')
-            logger.warning(f"'enable_raw_features is a deprecated parameter, use 'enable_numeric_features' instead. Specifying 'enable_raw_features' will raise an exception starting in 0.1.0")
+            logger.warning(
+                "'enable_raw_features is a deprecated parameter, use 'enable_numeric_features' instead. Specifying 'enable_raw_features' will raise an exception starting in 0.1.0"
+            )
+
 
         self.enable_numeric_features = enable_numeric_features
         self.enable_categorical_features = enable_categorical_features
@@ -97,7 +100,7 @@ class AutoMLPipelineFeatureGenerator(PipelineFeatureGenerator):
         self.enable_text_ngram_features = enable_text_ngram_features
         self.enable_raw_text_features = enable_raw_text_features
         self.enable_vision_features = enable_vision_features
-        self.text_ngram_params = text_ngram_params if text_ngram_params else {}
+        self.text_ngram_params = text_ngram_params or {}
 
         generators = self._get_default_generators(vectorizer=vectorizer)
         super().__init__(generators=generators, **kwargs)
@@ -119,11 +122,9 @@ class AutoMLPipelineFeatureGenerator(PipelineFeatureGenerator):
         if self.enable_text_ngram_features:
             generator_group.append(TextNgramFeatureGenerator(vectorizer=vectorizer, **self.text_ngram_params))
         if self.enable_vision_features:
-            generator_group.append(IdentityFeatureGenerator(infer_features_in_args=dict(
+            generator_group.extend((IdentityFeatureGenerator(infer_features_in_args=dict(
                 valid_raw_types=[R_OBJECT], required_special_types=[S_IMAGE_PATH],
-            )))
-            generator_group.append(IsNanFeatureGenerator(infer_features_in_args=dict(
+            )), IsNanFeatureGenerator(infer_features_in_args=dict(
                 valid_raw_types=[R_OBJECT], required_special_types=[S_IMAGE_PATH],
-            )))
-        generators = [generator_group]
-        return generators
+            ))))
+        return [generator_group]

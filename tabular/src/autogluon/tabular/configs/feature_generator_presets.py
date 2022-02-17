@@ -6,7 +6,7 @@ from autogluon.features.generators import AutoMLPipelineFeatureGenerator, Identi
 
 def get_default_feature_generator(feature_generator, feature_metadata=None, init_kwargs=None):
     if init_kwargs is None:
-        init_kwargs = dict()
+        init_kwargs = {}
     if feature_generator is None:
         feature_generator = IdentityFeatureGenerator()
     elif isinstance(feature_generator, str):

@@ -30,7 +30,12 @@ class WeightedEnsembleModel(StackerEnsembleModel):
         stack_columns = []
         for model in self.models:
             model = self.load_child(model, verbose=False)
-            stack_columns = stack_columns + [stack_column for stack_column in model.base_model_names if stack_column not in stack_columns]
+            stack_columns += [
+                stack_column
+                for stack_column in model.base_model_names
+                if stack_column not in stack_columns
+            ]
+
         self.stack_column_prefix_lst = [stack_column for stack_column in self.stack_column_prefix_lst if stack_column in stack_columns]
         self.stack_columns, self.num_pred_cols_per_model = self.set_stack_columns(stack_column_prefix_lst=self.stack_column_prefix_lst)
         min_stack_column_prefix_to_model_map = {k: v for k, v in self.stack_column_prefix_to_model_map.items() if k in self.stack_column_prefix_lst}
@@ -52,12 +57,9 @@ class WeightedEnsembleModel(StackerEnsembleModel):
 
     def compute_feature_importance(self, X, y, features=None, is_oof=True, **kwargs) -> pd.DataFrame:
         logger.warning('Warning: non-raw feature importance calculation is not valid for weighted ensemble since it does not have features, returning ensemble weights instead...')
-        if is_oof:
-            fi = pd.Series(self._get_model_weights()).sort_values(ascending=False)
-        else:
+        if not is_oof:
             logger.warning('Warning: Feature importance calculation is not yet implemented for WeightedEnsembleModel on unseen data, returning generic feature importance...')
-            fi = pd.Series(self._get_model_weights()).sort_values(ascending=False)
-
+        fi = pd.Series(self._get_model_weights()).sort_values(ascending=False)
         fi_df = fi.to_frame(name='importance')
         fi_df['stddev'] = np.nan
         fi_df['p_score'] = np.nan

@@ -52,9 +52,7 @@ else:
 
     def _str_to_unicode(x):
         """Handle text decoding. Internal use only"""
-        if not isinstance(x, str):
-            return x.decode(sys.getfilesystemencoding())
-        return x
+        return x.decode(sys.getfilesystemencoding()) if not isinstance(x, str) else x
 
     def _handle_errors(rv, src):
         """Handle WinError. Internal use only"""

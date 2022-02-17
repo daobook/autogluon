@@ -198,7 +198,11 @@ class FeatureSelector:
                        f"stop threshold: {stopping_round}, prune ratio: {prune_ratio}, prune threshold: {prune_threshold}.")
         original_features = X.columns.tolist()
         if len(original_features) <= 1:
-            logger.log(20, f"\tSkipping feature pruning since there is less than 2 features in the dataset.")
+            logger.log(
+                20,
+                '\tSkipping feature pruning since there is less than 2 features in the dataset.',
+            )
+
             return original_features
         X, y, X_val, y_val, X_fi, y_fi, prune_threshold, noise_columns, feature_metadata = self.setup(X=X, y=y, X_val=X_val, y_val=y_val,
                                                                                                       n_train_subsample=n_train_subsample,
@@ -222,7 +226,7 @@ class FeatureSelector:
 
             importance_df = None
             while True:
-                index = index + 1
+                index += 1
                 model_name = f"{self.model_name}_{index}"
                 prioritize_fi = set(noise_columns)
                 fn_args = {'X': X_fi, 'y': y_fi, 'model': best_info['model'], 'time_budget': time_budget_fi, 'features': best_info['features'],
@@ -232,7 +236,11 @@ class FeatureSelector:
                                                                                                      prev_best_features=best_info['features'],
                                                                                                      prev_importance_df=importance_df)
                 if not success:
-                    logger.log(20, f"\tTime is up while computing feature importance or there are no more features to prune. Ending...")
+                    logger.log(
+                        20,
+                        '\tTime is up while computing feature importance or there are no more features to prune. Ending...',
+                    )
+
                     break
                 curr_model, score, fit_score_time = self.fit_score_model(X, y, X_val, y_val, candidate_features, model_name, **kwargs)
 
@@ -258,10 +266,10 @@ class FeatureSelector:
                     logger.log(20, f"\tScore has not improved for {stopping_round} feature pruning rounds. Ending...")
                     break
                 if time_remaining <= self.fit_score_time + prune_time:
-                    logger.log(20, f"\tInsufficient time to finish next pruning round. Ending...")
+                    logger.log(20, '\tInsufficient time to finish next pruning round. Ending...')
                     break
         except TimeLimitExceeded:
-            logger.log(20, f"\tTime limit exceeded while pruning features. Ending...")
+            logger.log(20, '\tTime limit exceeded while pruning features. Ending...')
         except Exception as e:
             logger.error(traceback.format_exc())
             logger.error(f"\tERROR: Exception raised during feature pruning. Reason: {e}. Ending...")
@@ -301,7 +309,7 @@ class FeatureSelector:
             candidate_found = len(candidate_features) > 0 and len(candidate_features) <= (1. - self.min_prune_ratio) * len(prev_best_features)
             all_features_evaluated = len(importance_df[importance_df['importance'].isna()]) == 0
             fn_args['prev_importance_df'] = importance_df
-            total_prune_time = total_prune_time + prune_time
+            total_prune_time += prune_time
             if candidate_found or all_features_evaluated:
                 break
         logger.log(15, f"\tCandidate generation time: ({round(total_prune_time, 2)}s), Cardinality: {len(candidate_features)}")
@@ -329,7 +337,12 @@ class FeatureSelector:
             features = list(prioritized) + [feature for feature in features if feature not in prioritized]
 
         # if we do not have enough time to evaluate feature importance for all features, do so only for some (first n_evaluated_features elements of features)
-        n_evaluated_features = max([i for i in range(0, n_features+1) if i * single_feature_fi_time + self.model_predict_time <= time_budget])
+        n_evaluated_features = max(
+            i
+            for i in range(n_features + 1)
+            if i * single_feature_fi_time + self.model_predict_time <= time_budget
+        )
+
         if n_evaluated_features == 0:
             prune_time = time.time() - time_start
             return features, unevaluated_fi_df_template(features), prune_time
@@ -486,7 +499,11 @@ class FeatureSelector:
         else:
             trigger_replace_bag = kwargs.get('replace_bag', True) and self.is_bagged and len(X) > n_train_subsample + min_fi_samples
         if trigger_replace_bag:
-            logger.log(20, f"\tFeature selection model is bagged and replace_bag=True. Using a non-bagged version of the model for feature selection.")
+            logger.log(
+                20,
+                '\tFeature selection model is bagged and replace_bag=True. Using a non-bagged version of the model for feature selection.',
+            )
+
             val_ratio = 1. - n_train_subsample / len(X) if n_train_subsample is not None else 0.25
             X_train, X_val, y_train, y_val = generate_train_test_split(X=X, y=y, problem_type=self.problem_type, random_state=random_state, test_size=val_ratio)
             self.is_bagged = False

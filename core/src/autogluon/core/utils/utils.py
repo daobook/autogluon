@@ -36,8 +36,8 @@ def get_gpu_count_all():
     num_gpus = _get_gpu_count_cuda()
     if num_gpus == 0:
         num_gpus = get_gpu_count_mxnet()
-        if num_gpus == 0:
-            num_gpus = get_gpu_count_torch()
+    if num_gpus == 0:
+        num_gpus = get_gpu_count_torch()
     return num_gpus
 
 
@@ -92,13 +92,12 @@ class CVSplitter:
             if self.n_repeats != 1:
                 raise AssertionError(f'n_repeats must be 1 when split groups are specified. (n_repeats={self.n_repeats})')
             self.n_splits = num_groups
-            splitter_cls = LeaveOneGroupOut
-            # pass
+            return LeaveOneGroupOut
+                # pass
         elif self.stratified:
-            splitter_cls = RepeatedStratifiedKFold
+            return RepeatedStratifiedKFold
         else:
-            splitter_cls = RepeatedKFold
-        return splitter_cls
+            return RepeatedKFold
 
     def _get_splitter(self, splitter_cls):
         if splitter_cls == LeaveOneGroupOut:
@@ -109,26 +108,25 @@ class CVSplitter:
             raise AssertionError(f'{splitter_cls} is not supported as a valid `splitter_cls` input to CVSplitter.')
 
     def split(self, X, y):
-        if isinstance(self._splitter, RepeatedStratifiedKFold):
-            # FIXME: There is a bug in sklearn that causes an incorrect ValueError if performing stratification and all classes have fewer than n_splits samples.
-            #  This is hacked by adding a dummy class with n_splits samples, performing the kfold split, then removing the dummy samples from all resulting indices.
-            #  This is very inefficient and complicated and ideally should be fixed in sklearn.
-            with warning_filter():
-                try:
-                    out = [[train_index, test_index] for train_index, test_index in self._splitter.split(X, y)]
-                except:
-                    y_dummy = pd.concat([y, pd.Series([-1] * self.n_splits)], ignore_index=True)
-                    X_dummy = pd.concat([X, X.head(self.n_splits)], ignore_index=True)
-                    invalid_index = set(list(y_dummy.tail(self.n_splits).index))
-                    out = [[train_index, test_index] for train_index, test_index in self._splitter.split(X_dummy, y_dummy)]
-                    len_out = len(out)
-                    for i in range(len_out):
-                        train_index, test_index = out[i]
-                        out[i][0] = [index for index in train_index if index not in invalid_index]
-                        out[i][1] = [index for index in test_index if index not in invalid_index]
-            return out
-        else:
+        if not isinstance(self._splitter, RepeatedStratifiedKFold):
             return [[train_index, test_index] for train_index, test_index in self._splitter.split(X, y, groups=self.groups)]
+        # FIXME: There is a bug in sklearn that causes an incorrect ValueError if performing stratification and all classes have fewer than n_splits samples.
+        #  This is hacked by adding a dummy class with n_splits samples, performing the kfold split, then removing the dummy samples from all resulting indices.
+        #  This is very inefficient and complicated and ideally should be fixed in sklearn.
+        with warning_filter():
+            try:
+                out = [[train_index, test_index] for train_index, test_index in self._splitter.split(X, y)]
+            except:
+                y_dummy = pd.concat([y, pd.Series([-1] * self.n_splits)], ignore_index=True)
+                X_dummy = pd.concat([X, X.head(self.n_splits)], ignore_index=True)
+                invalid_index = set(list(y_dummy.tail(self.n_splits).index))
+                out = [[train_index, test_index] for train_index, test_index in self._splitter.split(X_dummy, y_dummy)]
+                len_out = len(out)
+                for i in range(len_out):
+                    train_index, test_index = out[i]
+                    out[i][0] = [index for index in train_index if index not in invalid_index]
+                    out[i][1] = [index for index in test_index if index not in invalid_index]
+        return out
 
 
 def setup_compute(nthreads_per_trial, ngpus_per_trial):
@@ -184,8 +182,7 @@ def get_leaderboard_pareto_frontier(leaderboard: DataFrame, score_col='score_val
         elif (inference_time_min is None) or (row[inference_time_col] < inference_time_min):
             inference_time_min = row[inference_time_col]
             pareto_frontier.append(index)
-    leaderboard_pareto_frontier = leaderboard_unique.loc[pareto_frontier].reset_index(drop=True)
-    return leaderboard_pareto_frontier
+    return leaderboard_unique.loc[pareto_frontier].reset_index(drop=True)
 
 
 def shuffle_df_rows(X: DataFrame, seed=0, reset_index=True):
@@ -248,10 +245,12 @@ def augment_rare_classes(X, label, threshold):
         logger.debug("augment_rare_classes did not need to duplicate any data from rare classes")
         return X
 
-    missing_classes = []
-    for clss, n_clss in class_counts_invalid.iteritems():
-        if n_clss == 0:
-            missing_classes.append(clss)
+    missing_classes = [
+        clss
+        for clss, n_clss in class_counts_invalid.iteritems()
+        if n_clss == 0
+    ]
+
     if missing_classes:
         logger.warning(f'WARNING: Classes were found that have 0 training examples, and may lead to downstream issues. '
                        f'Consider either providing data for these classes or removing them from the class categories. '
@@ -294,25 +293,20 @@ def augment_rare_classes(X, label, threshold):
 
 def get_pred_from_proba_df(y_pred_proba, problem_type=BINARY):
     """From input DataFrame of pred_proba, return Series of pred"""
-    if problem_type == REGRESSION:
-        y_pred = y_pred_proba
-    elif problem_type == QUANTILE:
-        y_pred = y_pred_proba
-    else:
-        y_pred = y_pred_proba.idxmax(axis=1)
-    return y_pred
+    return (
+        y_pred_proba
+        if problem_type in [REGRESSION, QUANTILE]
+        else y_pred_proba.idxmax(axis=1)
+    )
 
 
 def get_pred_from_proba(y_pred_proba, problem_type=BINARY):
     if problem_type == BINARY:
-        y_pred = [1 if pred >= 0.5 else 0 for pred in y_pred_proba]
-    elif problem_type == REGRESSION:
-        y_pred = y_pred_proba
-    elif problem_type == QUANTILE:
-        y_pred = y_pred_proba
+        return [1 if pred >= 0.5 else 0 for pred in y_pred_proba]
+    elif problem_type in [REGRESSION, QUANTILE]:
+        return y_pred_proba
     else:
-        y_pred = np.argmax(y_pred_proba, axis=1)
-    return y_pred
+        return np.argmax(y_pred_proba, axis=1)
 
 
 def generate_train_test_split(X: DataFrame,
@@ -326,11 +320,7 @@ def generate_train_test_split(X: DataFrame,
 
     X_split = X
     y_split = y
-    if problem_type in [BINARY, MULTICLASS]:
-        stratify = y
-    else:
-        stratify = None
-
+    stratify = y if problem_type in [BINARY, MULTICLASS] else None
     # This code block is necessary to avoid crashing when performing a stratified split and only 1 sample exists for a class.
     # This code will ensure that the sample will be part of the train split, meaning the test split will have 0 samples of the rare class.
     rare_indices = None
@@ -417,7 +407,7 @@ def normalize_pred_probas(y_predprob, problem_type, eps=1e-7):
         else:
             return normalize_multi_probas(y_predprob, eps)
     else:
-        raise ValueError(f"Invalid problem_type")
+        raise ValueError('Invalid problem_type')
 
 
 def infer_problem_type(y: Series, silent=False) -> str:
@@ -432,11 +422,7 @@ def infer_problem_type(y: Series, silent=False) -> str:
     unique_values = y.unique()
 
     MULTICLASS_LIMIT = 1000  # if numeric and class count would be above this amount, assume it is regression
-    if num_rows > 1000:
-        REGRESS_THRESHOLD = 0.05  # if the unique-ratio is less than this, we assume multiclass classification, even when labels are integers
-    else:
-        REGRESS_THRESHOLD = 0.1
-
+    REGRESS_THRESHOLD = 0.05 if num_rows > 1000 else 0.1
     unique_count = len(unique_values)
     if unique_count == 2:
         problem_type = BINARY
@@ -448,8 +434,7 @@ def infer_problem_type(y: Series, silent=False) -> str:
         unique_ratio = unique_count / float(num_rows)
         if (unique_ratio <= REGRESS_THRESHOLD) and (unique_count <= MULTICLASS_LIMIT):
             try:
-                can_convert_to_int = np.array_equal(y, y.astype(int))
-                if can_convert_to_int:
+                if can_convert_to_int := np.array_equal(y, y.astype(int)):
                     problem_type = MULTICLASS
                     reason = "dtype of label-column == float, but few unique label-values observed and label-values can be converted to int"
                 else:
@@ -494,9 +479,7 @@ def infer_problem_type(y: Series, silent=False) -> str:
 
 def infer_eval_metric(problem_type: str) -> Scorer:
     """Infers appropriate default eval metric based on problem_type. Useful when no eval_metric was provided."""
-    if problem_type == BINARY:
-        return accuracy
-    elif problem_type == MULTICLASS:
+    if problem_type in [BINARY, MULTICLASS]:
         return accuracy
     elif problem_type == QUANTILE:
         return pinball_loss
@@ -520,7 +503,7 @@ def compute_weighted_metric(y, y_pred, metric, weights, weight_evaluation=None, 
     if not metric.needs_quantile:
         kwargs.pop('quantile_levels', None)
     if weight_evaluation is None:
-        weight_evaluation = not (weights is None)
+        weight_evaluation = weights is not None
     if weight_evaluation and weights is None:
         raise ValueError("Sample weights cannot be None when weight_evaluation=True.")
     if not weight_evaluation:
@@ -528,10 +511,7 @@ def compute_weighted_metric(y, y_pred, metric, weights, weight_evaluation=None, 
     try:
         weighted_metric = metric(y, y_pred, sample_weight=weights, **kwargs)
     except (ValueError, TypeError, KeyError):
-        if hasattr(metric, 'name'):
-            metric_name = metric.name
-        else:
-            metric_name = metric
+        metric_name = metric.name if hasattr(metric, 'name') else metric
         logger.log(30, f"WARNING: eval_metric='{metric_name}' does not support sample weights so they will be ignored in reported metric.")
         weighted_metric = metric(y, y_pred, **kwargs)
     return weighted_metric

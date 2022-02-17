@@ -21,11 +21,9 @@ def setup_outputdir(path, warn_if_exist=True, create_dir=True, path_suffix=None)
             try:
                 if create_dir:
                     os.makedirs(path, exist_ok=False)
-                    break
-                else:
-                    if os.path.isdir(path):
-                        raise FileExistsError
-                    break
+                elif os.path.isdir(path):
+                    raise FileExistsError
+                break
             except FileExistsError as e:
                 path = f"AutogluonModels/ag-{timestamp}-{i:03d}{path_suffix}{os.path.sep}"
         else:

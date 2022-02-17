@@ -126,7 +126,7 @@ class LocalSequentialScheduler(object):
         search_options = kwargs.get('search_options', None)
         if isinstance(searcher, str):
             if search_options is None:
-                search_options = dict()
+                search_options = {}
             _search_options = search_options.copy()
             _search_options['search_space'] = search_space
             _search_options['reward_attribute'] = self._reward_attr
@@ -164,14 +164,14 @@ class LocalSequentialScheduler(object):
             trial_run_times.append(np.NaN if is_failed else (trial_end_time - trial_start_time))
 
             if self.max_reward and self.get_best_reward() >= self.max_reward:
-                logger.log(20, f'\tMax reward is reached')
+                logger.log(20, '\tMax reward is reached')
                 break
 
             if self.time_out is not None:
                 avg_trial_run_time = np.nanmean(trial_run_times)
                 avg_trial_run_time = 0 if np.isnan(avg_trial_run_time) else avg_trial_run_time
                 if not self.has_enough_time_for_trial_(self.time_out, time_start, trial_start_time, trial_end_time, avg_trial_run_time):
-                    logger.log(20, f'\tTime limit exceeded')
+                    logger.log(20, '\tTime limit exceeded')
                     break
 
     @classmethod
@@ -242,11 +242,11 @@ class LocalSequentialScheduler(object):
         return self.run_job_(task_id, searcher_config, reporter)
 
     def run_job_(self, task_id, searcher_config, reporter):
-        args = dict()
+        args = {}
         if self.train_fn_kwargs is not None:
             train_fn_kwargs = deepcopy(self.train_fn_kwargs)
         else:
-            train_fn_kwargs = dict()
+            train_fn_kwargs = {}
         args.update(searcher_config)
 
         args['task_id'] = task_id

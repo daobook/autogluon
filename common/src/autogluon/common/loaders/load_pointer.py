@@ -12,10 +12,13 @@ def get_pointer_content(path, verbose=True):
         content_path = obj.get()['Body'].read().decode('utf-8')
     else:
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        f = open(path, "r")
-        content_path = f.read()
-        f.close()
+        with open(path, "r") as f:
+            content_path = f.read()
     if verbose:
-        logger.log(15, 'Loaded pointer file '+str(path)+' pointing to '+str(content_path))
+        logger.log(
+            15,
+            f'Loaded pointer file {str(path)} pointing to {str(content_path)}',
+        )
+
 
     return content_path

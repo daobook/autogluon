@@ -182,17 +182,16 @@ def pac_score(solution, prediction):
             frac_neg_ = np.maximum(eps, frac_neg)
             pos_class_log_loss_ = -frac_pos * np.log(frac_pos_)
             neg_class_log_loss_ = -frac_neg * np.log(frac_neg_)
-            base_log_loss = pos_class_log_loss_ + neg_class_log_loss_
-            # base_log_loss = mvmean(base_log_loss)
-            # print('binary {}'.format(base_log_loss))
-            # In the multilabel case, the right thing i to AVERAGE not sum
-            # We return all the scores so we can normalize correctly later on
+            return pos_class_log_loss_ + neg_class_log_loss_
+                # base_log_loss = mvmean(base_log_loss)
+                # print('binary {}'.format(base_log_loss))
+                # In the multilabel case, the right thing i to AVERAGE not sum
+                # We return all the scores so we can normalize correctly later on
         else:  # multiclass case
             fp = frac_pos_ / sum(frac_pos_)  # Need to renormalize the lines in multiclass case
             # Only ONE label is 1 in the multiclass case active for each line
             pos_class_log_loss_ = -frac_pos * np.log(fp)
-            base_log_loss = np.sum(pos_class_log_loss_)
-        return base_log_loss
+            return np.sum(pos_class_log_loss_)
 
     y_type = type_of_target(solution)
 
@@ -327,13 +326,10 @@ def confusion_matrix(solution, prediction, labels=None, weights=None, normalize=
         cm = np.nan_to_num(cm)
     if output_format == 'python_list':
         return cm.tolist()
-    elif output_format == 'numpy_array':
+    elif output_format == 'numpy_array' or output_format != 'pandas_dataframe':
         return cm
-    elif output_format == 'pandas_dataframe':
-        cm_df = pd.DataFrame(data=cm, index=labels, columns=labels)
-        return cm_df
     else:
-        return cm
+        return pd.DataFrame(data=cm, index=labels, columns=labels)
 
 # TODO Add the "labels" option to metrics that will require the label map.
 #  We will need to update how we use those metrics accordingly.

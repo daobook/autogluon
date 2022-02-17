@@ -34,7 +34,7 @@ class IsNanFeatureGenerator(AbstractFeatureGenerator):
 
     def _fit_transform(self, X: DataFrame, **kwargs) -> (DataFrame, dict):
         features = self.feature_metadata_in.get_features()
-        self._null_feature_map = dict()
+        self._null_feature_map = {}
         for feature in features:
             feature_raw_type = self.feature_metadata_in.get_feature_type_raw(feature)
             if feature_raw_type in self.null_map:
@@ -45,13 +45,16 @@ class IsNanFeatureGenerator(AbstractFeatureGenerator):
 
     # TODO: Try returning bool type instead of uint8
     def _transform(self, X: DataFrame) -> DataFrame:
-        is_nan_features = dict()
+        is_nan_features = {}
         for feature in self.features_in:
             if feature in self._null_feature_map:
                 null_val = self._null_feature_map[feature]
-                is_nan_features['__nan__.' + feature] = (X[feature] == null_val).astype(np.uint8)
+                is_nan_features[f'__nan__.{feature}'] = (
+                    X[feature] == null_val
+                ).astype(np.uint8)
+
             else:
-                is_nan_features['__nan__.' + feature] = X[feature].isnull().astype(np.uint8)
+                is_nan_features[f'__nan__.{feature}'] = X[feature].isnull().astype(np.uint8)
         return pd.DataFrame(is_nan_features, index=X.index)
 
     @staticmethod

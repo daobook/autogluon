@@ -28,8 +28,7 @@ class MemoryCheckCallback:
 
     def after_iteration(self, info):
         if info.iteration % self.period == 0:
-            not_enough_memory = self.memory_check()
-            if not_enough_memory:
+            if not_enough_memory := self.memory_check():
                 logger.log(20, f'\tRan low on memory, early stopping on iteration {info.iteration}.')
                 return False
         return True
@@ -47,11 +46,17 @@ class MemoryCheckCallback:
 
         early_stop = False
         if model_size_memory_ratio > 1.0:
-            logger.warning(f'Warning: Large model size may cause OOM error if training continues')
+            logger.warning(
+                'Warning: Large model size may cause OOM error if training continues'
+            )
+
             early_stop = True
 
         if available_mb < 512:  # Less than 500 MB
-            logger.warning(f'Warning: Low available memory may cause OOM error if training continues')
+            logger.warning(
+                'Warning: Low available memory may cause OOM error if training continues'
+            )
+
             early_stop = True
 
         if early_stop:

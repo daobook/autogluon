@@ -32,8 +32,7 @@ def load(path: str) -> str:
     >>> assert data == data_loaded
     """
 
-    is_s3_path = s3_utils.is_s3_url(path)
-    if is_s3_path:
+    if is_s3_path := s3_utils.is_s3_url(path):
         import boto3
         bucket, key = s3_utils.s3_path_to_bucket_prefix(path)
         s3_client = boto3.client('s3')

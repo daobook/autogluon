@@ -225,7 +225,7 @@ def _load(f, map_location, pickle_module, **pickle_load_args):
             return
         if original_source != current_source:
             if container_type.dump_patches:
-                file_name = container_type.__name__ + '.patch'
+                file_name = f'{container_type.__name__}.patch'
                 diff = difflib.unified_diff(current_source.split('\n'),
                                             original_source.split('\n'),
                                             source_file,
@@ -239,8 +239,8 @@ def _load(f, map_location, pickle_module, **pickle_load_args):
                             f.write(lines)
                         elif file_size != len(lines) or f.read() != lines:
                             raise IOError
-                    msg = ("Saved a reverse patch to " + file_name + ". "
-                           "Run `patch -p0 < " + file_name + "` to revert your "
+                    msg = (((f'Saved a reverse patch to {file_name}' + ". "
+                           "Run `patch -p0 < ") + file_name) + "` to revert your "
                            "changes.")
                 except IOError:
                     msg = ("Tried to save a patch, but couldn't create a "
@@ -284,13 +284,12 @@ def _load(f, map_location, pickle_module, **pickle_load_args):
                 obj = data_type(size)
                 deserialized_objects[root_key] = restore_location(obj, location)
             storage = deserialized_objects[root_key]
-            if view_metadata is not None:
-                view_key, offset, view_size = view_metadata
-                if view_key not in deserialized_objects:
-                    deserialized_objects[view_key] = storage[offset:offset + view_size]
-                return deserialized_objects[view_key]
-            else:
+            if view_metadata is None:
                 return storage
+            view_key, offset, view_size = view_metadata
+            if view_key not in deserialized_objects:
+                deserialized_objects[view_key] = storage[offset:offset + view_size]
+            return deserialized_objects[view_key]
         else:
             raise RuntimeError("Unknown saved id type: %s" % saved_id[0])
 

@@ -83,12 +83,13 @@ class StackerEnsembleModel(BaggedEnsembleModel):
         for model in models:
             model_type_groups[model_types[model]].append((model, model_scores[model]))
         models_remain = []
-        for key in model_type_groups:
-            models_remain += sorted(model_type_groups[key], key=lambda x: x[1], reverse=True)[:max_base_models_per_type]
-        models_valid_set = set([model for model, score in models_remain])
-        # Important: Ensure ordering of `models_valid` is the same as `models`
-        models_valid = [model for model in models if model in models_valid_set]
-        return models_valid
+        for key, value in model_type_groups.items():
+            models_remain += sorted(value, key=lambda x: x[1], reverse=True)[
+                :max_base_models_per_type
+            ]
+
+        models_valid_set = {model for model, score in models_remain}
+        return [model for model in models if model in models_valid_set]
 
     def limit_models(self, models, model_scores, max_base_models):
         model_types = {model: '' for model in models}
@@ -102,9 +103,8 @@ class StackerEnsembleModel(BaggedEnsembleModel):
 
     def preprocess(self, X, fit=False, compute_base_preds=True, infer=True, model_pred_proba_dict=None, **kwargs):
         if self.stack_column_prefix_lst:
-            if infer:
-                if set(self.stack_columns).issubset(set(list(X.columns))):
-                    compute_base_preds = False  # TODO: Consider removing, this can be dangerous but the code to make this work otherwise is complex (must rewrite predict_proba)
+            if infer and set(self.stack_columns).issubset(set(list(X.columns))):
+                compute_base_preds = False  # TODO: Consider removing, this can be dangerous but the code to make this work otherwise is complex (must rewrite predict_proba)
             if compute_base_preds:
                 X_stacker = []
                 for stack_column_prefix in self.stack_column_prefix_lst:
@@ -161,10 +161,20 @@ class StackerEnsembleModel(BaggedEnsembleModel):
 
     def set_stack_columns(self, stack_column_prefix_lst):
         if self.problem_type in [MULTICLASS, SOFTCLASS]:
-            stack_columns = [stack_column_prefix + '_' + str(cls) for stack_column_prefix in stack_column_prefix_lst for cls in range(self.num_classes)]
+            stack_columns = [
+                f'{stack_column_prefix}_{str(cls)}'
+                for stack_column_prefix in stack_column_prefix_lst
+                for cls in range(self.num_classes)
+            ]
+
             num_pred_cols_per_model = self.num_classes
         elif self.problem_type == QUANTILE:
-            stack_columns = [stack_column_prefix + '_' + str(q) for stack_column_prefix in stack_column_prefix_lst for q in self.quantile_levels]
+            stack_columns = [
+                f'{stack_column_prefix}_{str(q)}'
+                for stack_column_prefix in stack_column_prefix_lst
+                for q in self.quantile_levels
+            ]
+
             num_pred_cols_per_model = len(self.quantile_levels)
         else:
             stack_columns = stack_column_prefix_lst
@@ -192,12 +202,10 @@ class StackerEnsembleModel(BaggedEnsembleModel):
 
     def load_base_model(self, model_name):
         if model_name in self.base_models_dict.keys():
-            model = self.base_models_dict[model_name]
-        else:
-            model_type = self.base_model_types_dict[model_name]
-            model_path = self.base_model_paths_dict[model_name]
-            model = model_type.load(model_path)
-        return model
+            return self.base_models_dict[model_name]
+        model_type = self.base_model_types_dict[model_name]
+        model_path = self.base_model_paths_dict[model_name]
+        return model_type.load(model_path)
 
     def get_info(self):
         info = super().get_info()
@@ -211,18 +219,19 @@ class StackerEnsembleModel(BaggedEnsembleModel):
         return info
 
     def _add_stack_to_feature_metadata(self):
-        if len(self.models) == 0:
-            type_map_raw = {column: R_FLOAT for column in self.stack_columns}
-            type_group_map_special = {S_STACK: self.stack_columns}
-            stacker_feature_metadata = FeatureMetadata(type_map_raw=type_map_raw, type_group_map_special=type_group_map_special)
-            if self.feature_metadata is None:  # TODO: This is probably not the best way to do this
-                self.feature_metadata = stacker_feature_metadata
-            else:
-                # FIXME: This is a hack, stack feature special types should be already present in feature_metadata, not added here
-                existing_stack_features = self.feature_metadata.get_features(required_special_types=[S_STACK])
-                # HACK: Currently AutoGluon auto-adds all base learner prediction features into self.feature_metadata.
-                # The two lines below are here because if feature pruning would crash if it prunes a base learner prediction feature.
-                existing_features = self.feature_metadata.get_features()
-                stacker_feature_metadata = stacker_feature_metadata.keep_features([feature for feature in existing_features if feature in type_map_raw])
-                if set(stacker_feature_metadata.get_features()) != set(existing_stack_features):
-                    self.feature_metadata = self.feature_metadata.add_special_types(stacker_feature_metadata.get_type_map_special())
+        if len(self.models) != 0:
+            return
+        type_map_raw = {column: R_FLOAT for column in self.stack_columns}
+        type_group_map_special = {S_STACK: self.stack_columns}
+        stacker_feature_metadata = FeatureMetadata(type_map_raw=type_map_raw, type_group_map_special=type_group_map_special)
+        if self.feature_metadata is None:  # TODO: This is probably not the best way to do this
+            self.feature_metadata = stacker_feature_metadata
+        else:
+            # FIXME: This is a hack, stack feature special types should be already present in feature_metadata, not added here
+            existing_stack_features = self.feature_metadata.get_features(required_special_types=[S_STACK])
+            # HACK: Currently AutoGluon auto-adds all base learner prediction features into self.feature_metadata.
+            # The two lines below are here because if feature pruning would crash if it prunes a base learner prediction feature.
+            existing_features = self.feature_metadata.get_features()
+            stacker_feature_metadata = stacker_feature_metadata.keep_features([feature for feature in existing_features if feature in type_map_raw])
+            if set(stacker_feature_metadata.get_features()) != set(existing_stack_features):
+                self.feature_metadata = self.feature_metadata.add_special_types(stacker_feature_metadata.get_type_map_special())

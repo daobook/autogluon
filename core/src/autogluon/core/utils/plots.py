@@ -17,17 +17,15 @@ def plot_performance_vs_trials(results, output_directory, save_file="Performance
         matplotlib_imported = True
     except ImportError:
         matplotlib_imported = False
-    
+
     if not matplotlib_imported:
         warnings.warn('AutoGluon summary plots cannot be created because matplotlib is not installed. Please do: "pip install matplotlib"')
         return None
-    
+
     ordered_trials = sorted(list(results['trial_info'].keys()))
     ordered_val_perfs = [results['trial_info'][trial_id][results['reward_attr']] for trial_id in ordered_trials]
     x = range(1, len(ordered_trials)+1)
-    y = []
-    for i in x:
-        y.append(max([ordered_val_perfs[j] for j in range(i)])) # best validation performance in trials up until ith one (assuming higher = better)
+    y = [max(ordered_val_perfs[j] for j in range(i)) for i in x]
     fig, ax = plt.subplots()
     ax.plot(x, y)
     ax.set(xlabel='Completed Trials', ylabel='Best Performance', title = plot_title)
@@ -82,12 +80,11 @@ def plot_tabular_models(results, output_directory=None, save_file="SummaryOfMode
                 Must at least contain key: 'model_performance'.
     """
     save_path = output_directory + save_file if output_directory else None
-    hidden_keys = []
     model_performancedict = results['model_performance']
     model_names = list(model_performancedict.keys())
     val_perfs = [model_performancedict[key] for key in model_names]
     model_types = [results['model_types'][key] for key in model_names]
-    hidden_keys.append(model_types)
+    hidden_keys = [model_types]
     model_hyperparams = [_formatDict(results['model_hyperparams'][key]) for key in model_names]
     datadict = {'performance': val_perfs, 'model': model_names, 'model_type': model_types, 'hyperparameters': model_hyperparams}
     leaderboard = results['leaderboard'].copy()
@@ -102,10 +99,7 @@ def plot_tabular_models(results, output_directory=None, save_file="SummaryOfMode
 
 def _formatDict(d):
     """ Returns dict as string with HTML new-line tags <br> between key-value pairs. """
-    s = ''
-    for key in d:
-        new_s = str(key) + ": " + str(d[key]) + "<br>"
-        s += new_s
+    s = ''.join(f'{str(key)}: {str(d[key])}<br>' for key in d)
     return s[:-4]
 
 
@@ -143,17 +137,17 @@ def mousover_plot(datadict, attr_x, attr_y, attr_color=None, attr_size=None, sav
         if len(datadict[key]) != n:
             raise ValueError("Key %s in datadict has different length than %s" % (key, attr_x))
 
-    attr_x_is_string = any([type(val)==str for val in datadict[attr_x]])
+    attr_x_is_string = any(type(val)==str for val in datadict[attr_x])
     if attr_x_is_string:
         attr_x_levels = list(set(datadict[attr_x]))  # use this to translate between int-indices and x-values
         og_x_vals = datadict[attr_x][:]
-        attr_x2 = attr_x + "___"  # this key must not already be in datadict.
+        attr_x2 = f'{attr_x}___'
         hidden_keys.append(attr_x2)
         datadict[attr_x2] = [attr_x_levels.index(category) for category in og_x_vals] # convert to ints
 
     legend = None
     if attr_color is not None:
-        attr_color_is_string = any([type(val) == str for val in datadict[attr_color]])
+        attr_color_is_string = any(type(val) == str for val in datadict[attr_color])
         color_datavals = datadict[attr_color]
         if attr_color_is_string:
             attr_color_levels = list(set(color_datavals))
@@ -165,7 +159,7 @@ def mousover_plot(datadict, attr_x, attr_y, attr_color=None, attr_size=None, sav
         default_color = {'field': attr_color, 'transform': color_mapper}
 
     if attr_size is not None:  # different size for each point, ensure mean-size == point_size
-        attr_size2 = attr_size + "____"
+        attr_size2 = f'{attr_size}____'
         hidden_keys.append(attr_size2)
         og_sizevals = np.array(datadict[attr_size])
         sizevals = point_size + (og_sizevals - np.mean(og_sizevals))/np.std(og_sizevals) * (point_size/2)
@@ -188,7 +182,14 @@ def mousover_plot(datadict, attr_x, attr_y, attr_color=None, attr_size=None, sav
         circ = p.circle(attr_x, attr_y, line_color=default_color, line_alpha = point_transparency,
                         fill_color=default_color, fill_alpha=point_transparency, size=point_size, source=source)
     hover = p.select(dict(type=HoverTool))
-    hover.tooltips = OrderedDict([(key,'@'+key+'{safe}') for key in datadict.keys() if key not in hidden_keys])
+    hover.tooltips = OrderedDict(
+        [
+            (key, f'@{key}' + '{safe}')
+            for key in datadict.keys()
+            if key not in hidden_keys
+        ]
+    )
+
     # Format axes:
     p.xaxis.axis_label = attr_x
     p.yaxis.axis_label = attr_y
@@ -198,9 +199,15 @@ def mousover_plot(datadict, attr_x, attr_y, attr_color=None, attr_size=None, sav
 
     # Legend additions:
     if attr_color is not None and attr_color_is_string:
-        legend_it = []
-        for i in range(len(attr_color_levels)):
-            legend_it.append(LegendItem(label=attr_color_levels[i], renderers=[circ], index=datadict[attr_color].index(attr_color_levels[i])))
+        legend_it = [
+            LegendItem(
+                label=attr_color_levels[i],
+                renderers=[circ],
+                index=datadict[attr_color].index(attr_color_levels[i]),
+            )
+            for i in range(len(attr_color_levels))
+        ]
+
         legend = Legend(items=legend_it, location=(0, 0))
         p.add_layout(legend, 'right')
 

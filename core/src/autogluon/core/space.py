@@ -54,8 +54,7 @@ class Categorical(SimpleSpace):
         super().__init__(self.data[0])
 
     def __iter__(self):
-        for elem in self.data:
-            yield elem
+        yield from self.data
 
     def __getitem__(self, index):
         return self.data[index]
@@ -70,8 +69,7 @@ class Categorical(SimpleSpace):
         return self.data
 
     def __repr__(self):
-        reprstr = self.__class__.__name__ + str(self.data)
-        return reprstr
+        return self.__class__.__name__ + str(self.data)
 
 
 class Real(SimpleSpace):
@@ -108,11 +106,11 @@ class Real(SimpleSpace):
     def convert_to_sklearn(self):
         from scipy.stats import loguniform, uniform
 
-        if self.log:
-            sampler = loguniform(self.lower, self.upper)
-        else:
-            sampler = uniform(self.lower, self.upper - self.lower)
-        return sampler
+        return (
+            loguniform(self.lower, self.upper)
+            if self.log
+            else uniform(self.lower, self.upper - self.lower)
+        )
 
 
 class Int(SimpleSpace):

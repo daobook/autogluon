@@ -14,9 +14,7 @@ logger = logging.getLogger(__name__)
 # These support the same operations as the sklearn functions - at least as far as possible with FAISS
 def _check_weights(weights):
     """Check to make sure weights are valid"""
-    if weights in (None, 'uniform', 'distance'):
-        return weights
-    elif callable(weights):
+    if weights in (None, 'uniform', 'distance') or callable(weights):
         return weights
     else:
         raise ValueError("weights not recognized: should be 'uniform', 'distance', or a callable function")
@@ -92,23 +90,17 @@ class FAISSNeighborsRegressor:
             y_pred = np.mean(outputs, axis=1)
         else:
             denom = np.sum(weights, axis=1)
-            if outputs.ndim == 1:
-                y_pred = np.sum(weights * outputs, axis=1)
-                y_pred /= denom
-            else:
-                y_pred = np.sum(weights * outputs, axis=1)
-                y_pred /= denom
-
+            y_pred = np.sum(weights * outputs, axis=1)
+            y_pred /= denom
         return y_pred
 
     def __getstate__(self):
-        state = {}
-        for k, v in self.__dict__.items():
-            if (v is not self.index) and (v is not self.faiss):
-                state[k] = v
-            else:
-                state[k] = self.faiss.serialize_index(self.index)
-        return state
+        return {
+            k: v
+            if (v is not self.index) and (v is not self.faiss)
+            else self.faiss.serialize_index(self.index)
+            for k, v in self.__dict__.items()
+        }
 
     def __setstate__(self, state):
         try_import_faiss()
@@ -192,13 +184,12 @@ class FAISSNeighborsClassifier:
         return probabilities
 
     def __getstate__(self):
-        state = {}
-        for k, v in self.__dict__.items():
-            if (v is not self.index) and (v is not self.faiss):
-                state[k] = v
-            else:
-                state[k] = self.faiss.serialize_index(self.index)
-        return state
+        return {
+            k: v
+            if (v is not self.index) and (v is not self.faiss)
+            else self.faiss.serialize_index(self.index)
+            for k, v in self.__dict__.items()
+        }
 
     def __setstate__(self, state):
         try_import_faiss()

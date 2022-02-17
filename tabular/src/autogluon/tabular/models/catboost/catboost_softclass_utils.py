@@ -43,17 +43,6 @@ class SoftclassCustomMetric(CustomMetric):
             losses = np.multiply(np.log(approxes), target).sum(axis=1)
             error_sum = np.mean(losses)
             return error_sum, weight_sum
-            """ The above numpy evaluate() function is necessary for JIT to work and not print warnings, here is the original function (that works without JIT):
-            def evaluate(self, approxes, target, weight):
-                assert len(target) == len(approxes)
-                assert len(target[0]) == len(approxes[0])
-                weight_sum = len(target)
-                approxes = np.array(approxes)
-                approxes = np.exp(approxes)
-                approxes = np.multiply(approxes, 1/np.sum(approxes, axis=1)[:, np.newaxis])
-                error_sum = soft_log_loss(np.array(target), np.array(approxes))
-                return error_sum, weight_sum
-            """
 
 
 class SoftclassObjective(object):

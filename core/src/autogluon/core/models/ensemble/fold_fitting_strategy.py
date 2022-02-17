@@ -180,14 +180,13 @@ class LocalFoldFittingStrategy(AbstractFoldFittingStrategy):
         y_val_fold = self.y.iloc[val_index]
         # Check to avoid unnecessarily predicting and saving a model
         # when an Exception is going to be raised later
-        if self.time_limit is not None:
-            if not is_last_fold:
-                time_elapsed = time.time() - self.time_start
-                time_left = self.time_limit - time_elapsed
-                expected_time_required = time_elapsed * folds_to_fit / (folds_finished + 1)
-                expected_remaining_time_required = expected_time_required * (folds_left - 1) / folds_to_fit
-                if expected_remaining_time_required > time_left:
-                    raise TimeLimitExceeded
+        if self.time_limit is not None and not is_last_fold:
+            time_elapsed = time.time() - self.time_start
+            time_left = self.time_limit - time_elapsed
+            expected_time_required = time_elapsed * folds_to_fit / (folds_finished + 1)
+            expected_remaining_time_required = expected_time_required * (folds_left - 1) / folds_to_fit
+            if expected_remaining_time_required > time_left:
+                raise TimeLimitExceeded
         pred_proba = fold_model.predict_proba(X_val_fold)
         fold_model.predict_time = time.time() - time_train_end_fold
         fold_model.val_score = fold_model.score_with_y_pred_proba(y=y_val_fold,
@@ -240,9 +239,8 @@ class SequentialLocalFoldFittingStrategy(LocalFoldFittingStrategy):
             if is_pseudo:
                 # TODO: Add support for sample_weight when pseudo is present
                 raise Exception('Sample weights given, but not used due to pseudo labelled data being given.')
-            else:
-                kwargs_fold['sample_weight'] = self.sample_weight[train_index]
-                kwargs_fold['sample_weight_val'] = self.sample_weight[val_index]
+            kwargs_fold['sample_weight'] = self.sample_weight[train_index]
+            kwargs_fold['sample_weight_val'] = self.sample_weight[val_index]
 
         if is_pseudo:
             logger.log(15, f'{len(self.X_pseudo)} extra rows of pseudolabeled data added to training set for {fold_model.name}')
@@ -420,7 +418,7 @@ class ParallelLocalFoldFittingStrategy(LocalFoldFittingStrategy):
             try:
                 fold_model, pred_proba, time_start_fit, \
                     time_end_fit, predict_time = self.ray.get(finished)
-                fold_ctx = job_fold_map.get(finished, None)
+                fold_ctx = job_fold_map.get(finished)
                 assert fold_ctx is not None
                 self._update_bagged_ensemble(fold_model, pred_proba, time_start_fit,
                                              time_end_fit, predict_time, fold_ctx)
@@ -428,9 +426,6 @@ class ParallelLocalFoldFittingStrategy(LocalFoldFittingStrategy):
                 # Terminate all ray tasks because a fold failed
                 self.ray.shutdown()
                 raise TimeLimitExceeded
-            # NotEnoughMemoryError is an autogluon custom error,
-            # it predict memory usage before hand
-            # MemoryError is the actual python memory error if the process failed
             except (NotEnoughMemoryError, MemoryError):
                 error_msg = 'Consider decrease folds trained in parallel \
                              by passing num_fold_parallel to ag_args_ensemble \
@@ -460,14 +455,12 @@ class ParallelLocalFoldFittingStrategy(LocalFoldFittingStrategy):
         fold_ctx_ref = self.ray.put(fold_ctx)
         save_bag_folds = self.bagged_ensemble_model.params.get('save_bag_folds', True)
         kwargs_fold = kwargs.copy()
-        is_pseudo = X_pseudo_ref is not None and y_pseudo_ref is not None
         if self.sample_weight is not None:
-            if is_pseudo:
+            if is_pseudo := X_pseudo_ref is not None and y_pseudo_ref is not None:
                 # TODO: Add support for sample_weight when pseudo is present
                 raise Exception('Sample weights given, but not used due to pseudo labelled data being given.')
-            else:
-                kwargs_fold['sample_weight'] = self.sample_weight[train_index]
-                kwargs_fold['sample_weight_val'] = self.sample_weight[val_index]
+            kwargs_fold['sample_weight'] = self.sample_weight[train_index]
+            kwargs_fold['sample_weight_val'] = self.sample_weight[val_index]
         num_cpus = resources.get('num_cpus', 0)
         return self._ray_fit.options(**resources) \
             .remote(model_base_ref, self.bagged_ensemble_model.path,
@@ -560,22 +553,19 @@ class ParallelLocalFoldFittingStrategy(LocalFoldFittingStrategy):
                             Or decrease folds trained in parallel by passing num_fold_parallel \
                             to ag_args_ensemble when calling tabular.fit if you have multiple \
                             gpus and try again'
-                logger.warning(error_msg)
-            # FIXME: Avoid hardcoding model names.
             elif self.model_base.__class__.__name__ in [TABULAR_MXNET_MODEL, TABULAR_FASTAI_MODEL]:
                 error_msg = f'Out of CUDA memory while training \
                             {self.model_base.__class__.__name__}. \
                             Consider decrease batch size in hyperparameter and try again.\n\
                             Or decrease folds trained in parallel by passing num_fold_parallel \
                             to ag_args_ensemble when calling tabular.fit and try again'
-                logger.warning(error_msg)
             else:
                 error_msg = f'Out of CUDA memory while training \
                             {self.model_base.__class__.__name__}. \
                             Consider decrease folds trained in parallel by passing \
                             num_fold_parallel to ag_args_ensemble when calling tabular.fit \
                             and try again'
-                logger.warning(error_msg)
+            logger.warning(error_msg)
             logger.warning(default_error_msg)
             e = NotEnoughCudaMemoryError
         return e

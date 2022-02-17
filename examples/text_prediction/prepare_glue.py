@@ -79,15 +79,14 @@ def read_tsv_glue(tsv_file, num_skip=1, keep_column_names=False):
             finally:
                 pass
         series_l.append(df[col_name])
-    new_df = pd.DataFrame({name: series for name, series in zip(df.columns, series_l)})
-    return new_df
+    return pd.DataFrame(dict(zip(df.columns, series_l)))
 
 
 def read_jsonl_superglue(jsonl_file):
     columns = None
     out = []
     with open(jsonl_file, 'r') as f:
-        for i, line in enumerate(f):
+        for line in f:
             line = line.strip()
             sample = json.loads(line)
             if columns is None:
@@ -96,29 +95,27 @@ def read_jsonl_superglue(jsonl_file):
                 assert sorted(columns) == sorted(list(sample.keys())),\
                     'Columns={}, sample.keys()={}'.format(columns, sample.keys())
             out.append([sample[col] for col in columns])
-    df = pd.DataFrame(out, columns=columns)
-    return df
+    return pd.DataFrame(out, columns=columns)
 
 
 # Classification will be stored as pandas dataframe
 def read_cola(dir_path):
-    df_dict = dict()
+    df_dict = {}
     for fold in ['train', 'dev', 'test']:
         csv_file = os.path.join(dir_path, '{}.tsv'.format(fold))
         if fold == 'test':
             df = pd.read_csv(csv_file, '\t')
             df = df[['sentence']]
-            df_dict[fold] = df
         else:
             df = pd.read_csv(csv_file, '\t', header=None)
             df = df[[3, 1]]
             df.columns = ['sentence', 'label']
-            df_dict[fold] = df
+        df_dict[fold] = df
     return df_dict, None
 
 
 def read_sst(dir_path):
-    df_dict = dict()
+    df_dict = {}
     for fold in ['train', 'dev', 'test']:
         csv_file = os.path.join(dir_path, '{}.tsv'.format(fold))
         df = pd.read_csv(csv_file, '\t')
@@ -129,7 +126,7 @@ def read_sst(dir_path):
 
 
 def read_mrpc(dir_path):
-    df_dict = dict()
+    df_dict = {}
     for fold in ['train', 'dev', 'test']:
         tsv_file = os.path.join(dir_path, '{}.tsv'.format(fold))
         df = read_tsv_glue(tsv_file)
@@ -144,7 +141,7 @@ def read_mrpc(dir_path):
 
 
 def read_qqp(dir_path):
-    df_dict = dict()
+    df_dict = {}
     for fold in ['train', 'dev', 'test']:
         csv_file = os.path.join(dir_path, '{}.tsv'.format(fold))
         df = pd.read_csv(csv_file, '\t')
@@ -159,7 +156,7 @@ def read_qqp(dir_path):
 
 
 def read_sts(dir_path):
-    df_dict = dict()
+    df_dict = {}
     for fold in ['train', 'dev', 'test']:
         csv_file = os.path.join(dir_path, '{}.tsv'.format(fold))
         df = read_tsv_glue(csv_file)
@@ -181,7 +178,7 @@ def read_sts(dir_path):
 
 
 def read_mnli(dir_path):
-    df_dict = dict()
+    df_dict = {}
     for fold in ['train', 'dev_matched', 'dev_mismatched', 'test_matched', 'test_mismatched']:
         csv_file = os.path.join(dir_path, '{}.tsv'.format(fold))
         df = read_tsv_glue(csv_file, 1, True)
@@ -195,7 +192,7 @@ def read_mnli(dir_path):
 
 
 def read_snli(dir_path):
-    df_dict = dict()
+    df_dict = {}
     for fold in ['train', 'dev', 'test']:
         csv_file = os.path.join(dir_path, '{}.tsv'.format(fold))
         column_names = None
@@ -219,7 +216,7 @@ def read_snli(dir_path):
 
 
 def read_qnli(dir_path):
-    df_dict = dict()
+    df_dict = {}
     for fold in ['train', 'dev', 'test']:
         csv_file = os.path.join(dir_path, '{}.tsv'.format(fold))
         df = read_tsv_glue(csv_file, 1, True)
@@ -231,7 +228,7 @@ def read_qnli(dir_path):
 
 
 def read_rte(dir_path):
-    df_dict = dict()
+    df_dict = {}
     for fold in ['train', 'dev', 'test']:
         csv_file = os.path.join(dir_path, '{}.tsv'.format(fold))
         df = read_tsv_glue(csv_file, keep_column_names=True)
@@ -244,7 +241,7 @@ def read_rte(dir_path):
 
 
 def read_wnli(dir_path):
-    df_dict = dict()
+    df_dict = {}
     for fold in ['train', 'dev', 'test']:
         csv_file = os.path.join(dir_path, '{}.tsv'.format(fold))
         df = pd.read_csv(csv_file, '\t')
@@ -266,7 +263,7 @@ def read_glue_diagnostic(dir_path):
 
 
 def read_cb(dir_path):
-    df_dict = dict()
+    df_dict = {}
     for fold in ['train', 'val', 'test']:
         columns = ['premise', 'hypothesis']
         if fold != 'test':
@@ -279,7 +276,7 @@ def read_cb(dir_path):
 
 
 def read_copa(dir_path):
-    df_dict = dict()
+    df_dict = {}
     for fold in ['train', 'val', 'test']:
         columns = ['premise', 'choice1', 'choice2', 'question']
         if fold != 'test':
@@ -293,7 +290,7 @@ def read_copa(dir_path):
 
 # passage, question, answer, passage_idx, question_idx, answer_idx
 def read_multirc(dir_path):
-    df_dict = dict()
+    df_dict = {}
     for fold in ['train', 'val', 'test']:
         columns = ['passage', 'question', 'answer', 'psg_idx', 'qst_idx', 'ans_idx']
         if fold != 'test':
@@ -324,7 +321,7 @@ def read_multirc(dir_path):
 
 
 def read_rte_superglue(dir_path):
-    df_dict = dict()
+    df_dict = {}
     for fold in ['train', 'val', 'test']:
         if fold == 'test':
             columns = ['premise', 'hypothesis']
@@ -338,10 +335,11 @@ def read_rte_superglue(dir_path):
 
 
 def read_wic(dir_path):
-    df_dict = dict()
-    meta_data = dict()
-    meta_data['entities1'] = {'type': 'entity', 'attrs': {'parent': 'sentence1'}}
-    meta_data['entities2'] = {'type': 'entity', 'attrs': {'parent': 'sentence2'}}
+    df_dict = {}
+    meta_data = {
+        'entities1': {'type': 'entity', 'attrs': {'parent': 'sentence1'}},
+        'entities2': {'type': 'entity', 'attrs': {'parent': 'sentence2'}},
+    }
 
     for fold in ['train', 'val', 'test']:
         if fold != 'test':
@@ -374,11 +372,13 @@ def read_wic(dir_path):
 
 
 def read_wsc(dir_path):
-    df_dict = dict()
+    df_dict = {}
     tokenizer = WhitespaceTokenizer()
-    meta_data = dict()
-    meta_data['noun'] = {'type': 'entity', 'attrs': {'parent': 'text'}}
-    meta_data['pronoun'] = {'type': 'entity', 'attrs': {'parent': 'text'}}
+    meta_data = {
+        'noun': {'type': 'entity', 'attrs': {'parent': 'text'}},
+        'pronoun': {'type': 'entity', 'attrs': {'parent': 'text'}},
+    }
+
     for fold in ['train', 'val', 'test']:
         jsonl_path = os.path.join(dir_path, '{}.jsonl'.format(fold))
         df = read_jsonl_superglue(jsonl_path)
@@ -415,7 +415,7 @@ def read_wsc(dir_path):
 
 
 def read_boolq(dir_path):
-    df_dict = dict()
+    df_dict = {}
     for fold in ['train', 'val', 'test']:
         jsonl_path = os.path.join(dir_path, '{}.jsonl'.format(fold))
         df = read_jsonl_superglue(jsonl_path)
@@ -424,10 +424,12 @@ def read_boolq(dir_path):
 
 
 def read_record(dir_path):
-    df_dict = dict()
-    meta_data = dict()
-    meta_data['entities'] = {'type': 'entity', 'attrs': {'parent': 'text'}}
-    meta_data['answers'] = {'type': 'entity', 'attrs': {'parent': 'text'}}
+    df_dict = {}
+    meta_data = {
+        'entities': {'type': 'entity', 'attrs': {'parent': 'text'}},
+        'answers': {'type': 'entity', 'attrs': {'parent': 'text'}},
+    }
+
     for fold in ['train', 'val', 'test']:
         if fold != 'test':
             columns = ['source', 'text', 'entities', 'query', 'answers']
@@ -457,13 +459,11 @@ def read_record(dir_path):
 
 def read_winogender_diagnostic(dir_path):
     jsonl_path = os.path.join(dir_path, 'AX-g.jsonl')
-    df = read_jsonl_superglue(jsonl_path)
-    return df
+    return read_jsonl_superglue(jsonl_path)
 
 
 def read_broadcoverage_diagnostic(dir_path):
-    df = pyarrow.json.read_json(os.path.join(dir_path, 'AX-b.jsonl')).to_pandas()
-    return df
+    return pyarrow.json.read_json(os.path.join(dir_path, 'AX-b.jsonl')).to_pandas()
 
 
 GLUE_TASK2PATH = {
@@ -546,9 +546,7 @@ def format_mrpc(data_dir):
 
     dev_ids = []
     with open(os.path.join(mrpc_dir, "dev_ids.tsv"), encoding="utf8") as ids_fh:
-        for row in ids_fh:
-            dev_ids.append(row.strip().split("\t"))
-
+        dev_ids.extend(row.strip().split("\t") for row in ids_fh)
     with open(mrpc_train_file, encoding="utf8") as data_fh, open(
         os.path.join(mrpc_dir, "train.tsv"), "w", encoding="utf8"
     ) as train_fh, open(os.path.join(mrpc_dir, "dev.tsv"), "w", encoding="utf8") as dev_fh:
@@ -585,8 +583,7 @@ def get_tasks(benchmark, task_names):
             tasks.append(task_name)
         if "RTE" in tasks and "diagnostic" not in tasks:
             tasks.append("diagnostic")
-    has_diagnostic = any(['diagnostic' in task for task in tasks])
-    if has_diagnostic:
+    if has_diagnostic := any('diagnostic' in task for task in tasks):
         tasks = [ele for ele in tasks if 'diagnostic' not in ele]
         tasks.append('diagnostic')
     return tasks

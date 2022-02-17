@@ -56,12 +56,12 @@ class FeatureMetadata:
         for key in self.type_group_map_special:
             type_group_map_special_expanded += self.type_group_map_special[key]
 
-        features_invalid = []
         type_map_raw_keys = self.type_map_raw.keys()
-        for feature in type_group_map_special_expanded:
-            if feature not in type_map_raw_keys:
-                features_invalid.append(feature)
-        if features_invalid:
+        if features_invalid := [
+            feature
+            for feature in type_group_map_special_expanded
+            if feature not in type_map_raw_keys
+        ]:
             raise AssertionError(f"{len(features_invalid)} features are present in type_group_map_special but not in type_map_raw. Invalid features: {features_invalid}")
 
     # Note: This is not optimized for speed. Do not rely on this function during inference.
@@ -138,14 +138,16 @@ class FeatureMetadata:
                 for feature in features:
                     feature_type_raw = self.get_feature_type_raw(feature)
                     feature_types_special = set(self.get_feature_types_special(feature))
-                    if valid_raw is None or feature_type_raw == valid_raw:
-                        if valid_special is None:
-                            features_to_keep_inner.append(feature)
-                        elif required_exact:
-                            if valid_special == feature_types_special:
-                                features_to_keep_inner.append(feature)
-                        elif valid_special.issubset(feature_types_special):
-                            features_to_keep_inner.append(feature)
+                    if (valid_raw is None or feature_type_raw == valid_raw) and (
+                        valid_special is not None
+                        and required_exact
+                        and valid_special == feature_types_special
+                        or valid_special is None
+                        or valid_special is not None
+                        and not required_exact
+                        and valid_special.issubset(feature_types_special)
+                    ):
+                        features_to_keep_inner.append(feature)
                 features = [feature for feature in features if feature not in features_to_keep_inner]
                 features_to_keep += features_to_keep_inner
             features = [feature for feature in features_og if feature in features_to_keep]
@@ -179,12 +181,10 @@ class FeatureMetadata:
 
     def remove_features(self, features: list, inplace=False):
         """Removes all features from metadata that are in features"""
-        if inplace:
-            metadata = self
-        else:
-            metadata = copy.deepcopy(self)
-        features_invalid = [feature for feature in features if feature not in self.get_features()]
-        if features_invalid:
+        metadata = self if inplace else copy.deepcopy(self)
+        if features_invalid := [
+            feature for feature in features if feature not in self.get_features()
+        ]:
             raise KeyError(f'remove_features was called with a feature that does not exist in feature metadata. Invalid Features: {features_invalid}')
         metadata._remove_features_from_type_map(d=metadata.type_map_raw, features=features)
         metadata._remove_features_from_type_group_map(d=metadata.type_group_map_special, features=features)
@@ -192,8 +192,9 @@ class FeatureMetadata:
 
     def keep_features(self, features: list, inplace=False):
         """Removes all features from metadata except for those in features"""
-        features_invalid = [feature for feature in features if feature not in self.get_features()]
-        if features_invalid:
+        if features_invalid := [
+            feature for feature in features if feature not in self.get_features()
+        ]:
             raise KeyError(f'keep_features was called with a feature that does not exist in feature metadata. Invalid Features: {features_invalid}')
         features_to_remove = [feature for feature in self.get_features() if feature not in features]
         return self.remove_features(features=features_to_remove, inplace=inplace)
@@ -220,10 +221,7 @@ class FeatureMetadata:
         >>> feature_metadata = FeatureMetadata({'FeatureA': 'int', 'FeatureB': 'object'})
         >>> feature_metadata = feature_metadata.add_special_types({'FeatureA': ['MySpecialType'], 'FeatureB': ['MySpecialType', 'text']})
         """
-        if inplace:
-            metadata = self
-        else:
-            metadata = copy.deepcopy(self)
+        metadata = self if inplace else copy.deepcopy(self)
         valid_features = set(self.get_features())
 
         for feature, special_types in type_map_special.items():
@@ -246,15 +244,15 @@ class FeatureMetadata:
 
     def rename_features(self, rename_map: dict, inplace=False):
         """Rename all features from metadata that are keys in rename_map to their values."""
-        if inplace:
-            metadata = self
-        else:
-            metadata = copy.deepcopy(self)
+        metadata = self if inplace else copy.deepcopy(self)
         before_len = len(metadata.type_map_raw.keys())
         metadata.type_map_raw = {rename_map.get(key, key): val for key, val in metadata.type_map_raw.items()}
         after_len = len(metadata.type_map_raw.keys())
         if before_len != after_len:
-            raise AssertionError(f'key names conflicted during renaming. Do not rename features to exist feature names.')
+            raise AssertionError(
+                'key names conflicted during renaming. Do not rename features to exist feature names.'
+            )
+
         for dtype in metadata.type_group_map_special:
             metadata.type_group_map_special[dtype] = [rename_map.get(feature, feature) for feature in metadata.type_group_map_special[dtype]]
         return metadata
@@ -313,10 +311,12 @@ class FeatureMetadata:
 
     @staticmethod
     def _get_feature_types(feature: str, feature_types_dict: dict) -> list:
-        feature_types = []
-        for dtype_family in feature_types_dict:
-            if feature in feature_types_dict[dtype_family]:
-                feature_types.append(dtype_family)
+        feature_types = [
+            dtype_family
+            for dtype_family, value in feature_types_dict.items()
+            if feature in value
+        ]
+
         feature_types = sorted(feature_types)
         return feature_types
 
@@ -329,11 +329,7 @@ class FeatureMetadata:
         return metadata_new
 
     def to_dict(self, inverse=False) -> dict:
-        if not inverse:
-            feature_metadata_dict = dict()
-        else:
-            feature_metadata_dict = defaultdict(list)
-
+        feature_metadata_dict = dict() if not inverse else defaultdict(list)
         for feature in self.get_features():
             feature_type_raw = self.type_map_raw[feature]
             feature_types_special = tuple(self.get_feature_types_special(feature))
@@ -367,8 +363,8 @@ class FeatureMetadata:
                     logger.warning(f'Warning: print_only_one_special=True was set, but features with {len(special)} special types were found. Invalid Types: {output[i]}')
                 else:
                     output[i] = ((raw, None), features)
-        max_key_len = max([len(str(key)) for key, _ in output])
-        max_val_len = max([len(str(len(val))) for _, val in output])
+        max_key_len = max(len(str(key)) for key, _ in output)
+        max_val_len = max(len(str(len(val))) for _, val in output)
         for key, val in output:
             key_len = len(str(key))
             val_len = len(str(len(val)))
@@ -377,7 +373,7 @@ class FeatureMetadata:
             if max_list_len is not None:
                 features = str(val[:max_list_len])
                 if len(val) > max_list_len:
-                    features = features[:-1] + ', ...]'
+                    features = f'{features[:-1]}, ...]'
             else:
                 features = str(val)
             if val:

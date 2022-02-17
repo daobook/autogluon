@@ -51,7 +51,7 @@ class TextNgramFeatureGenerator(AbstractFeatureGenerator):
         # TODO: Finetune this, or find a better way to ensure stability
         # TODO: adjust max_memory_ratio correspondingly if prefilter_tokens==True
         self.max_memory_ratio = max_memory_ratio  # Ratio of maximum memory the output ngram features are allowed to use in dense int32 form.
-        
+
         if vectorizer is None:
             self.vectorizer_default_raw = vectorizer_auto_ml_default()
         else:
@@ -61,10 +61,10 @@ class TextNgramFeatureGenerator(AbstractFeatureGenerator):
             raise ValueError(f"vectorizer_strategy must be one of {['combined', 'separate', 'both']}, but value is: {vectorizer_strategy}")
         self.vectorizer_strategy = vectorizer_strategy
         self.vectorizer_features = None
-        self.prefilter_tokens = prefilter_tokens 
-        self.prefilter_token_count = prefilter_token_count 
+        self.prefilter_tokens = prefilter_tokens
+        self.prefilter_token_count = prefilter_token_count
         self.token_mask = None
-        self._feature_names_dict = dict()
+        self._feature_names_dict = {}
 
     def _fit_transform(self, X: DataFrame, y: Series = None, problem_type: str = None, **kwargs) -> (DataFrame, dict):
         
@@ -128,7 +128,7 @@ class TextNgramFeatureGenerator(AbstractFeatureGenerator):
         for nlp_feature in self.vectorizer_features:
             # TODO: Preprocess text?
             if nlp_feature == '__nlp__':  # Combine Text Fields
-                text_list = list(set(['. '.join(row) for row in X[self.features_in].values]))
+                text_list = list({'. '.join(row) for row in X[self.features_in].values})
             else:
                 text_list = list(X[nlp_feature].drop_duplicates().values)
             vectorizer_raw = copy.deepcopy(self.vectorizer_default_raw)
@@ -209,14 +209,14 @@ class TextNgramFeatureGenerator(AbstractFeatureGenerator):
             X_nlp_features_combined.append(X_nlp_features)
 
         if X_nlp_features_combined:
-            if len(X_nlp_features_combined) == 1:
-                X_nlp_features_combined = X_nlp_features_combined[0]
-            else:
-                X_nlp_features_combined = pd.concat(X_nlp_features_combined, axis=1)
-        else:
-            X_nlp_features_combined = DataFrame(index=X.index)
+            return (
+                X_nlp_features_combined[0]
+                if len(X_nlp_features_combined) == 1
+                else pd.concat(X_nlp_features_combined, axis=1)
+            )
 
-        return X_nlp_features_combined
+        else:
+            return DataFrame(index=X.index)
 
     # TODO: REMOVE NEED FOR text_data input!
     def _adjust_vectorizer_memory_usage(self, transform_matrix, text_data, vectorizer_fit, downsample_ratio: int = None):
@@ -226,10 +226,13 @@ class TextNgramFeatureGenerator(AbstractFeatureGenerator):
         mem_rss = psutil.Process().memory_info().rss
         predicted_rss = mem_rss + predicted_ngrams_memory_usage_bytes
         predicted_percentage = predicted_rss / mem_avail
-        if downsample_ratio is None:
-            if self.max_memory_ratio is not None and predicted_percentage > self.max_memory_ratio:
-                downsample_ratio = self.max_memory_ratio / predicted_percentage
-                self._log(30, 'Warning: Due to memory constraints, ngram feature count is being reduced. Allocate more memory to maximize model quality.')
+        if (
+            downsample_ratio is None
+            and self.max_memory_ratio is not None
+            and predicted_percentage > self.max_memory_ratio
+        ):
+            downsample_ratio = self.max_memory_ratio / predicted_percentage
+            self._log(30, 'Warning: Due to memory constraints, ngram feature count is being reduced. Allocate more memory to maximize model quality.')
 
         if downsample_ratio is not None:
             if (downsample_ratio >= 1) or (downsample_ratio <= 0):

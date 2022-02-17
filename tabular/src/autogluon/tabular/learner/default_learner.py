@@ -111,13 +111,9 @@ class DefaultLearner(AbstractLearner):
         """ General data processing steps used for all models. """
         X = copy.deepcopy(X)
 
-        # TODO: We should probably uncomment the below lines, NaN label should be treated as just another value in multiclass classification -> We will have to remove missing, compute problem type, and add back missing if multiclass
-        # if self.problem_type == MULTICLASS:
-        #     X[self.label] = X[self.label].fillna('')
-
-        # Remove all examples with missing labels from this dataset:
-        missinglabel_inds = [index for index, x in X[self.label].isna().iteritems() if x]
-        if len(missinglabel_inds) > 0:
+        if missinglabel_inds := [
+            index for index, x in X[self.label].isna().iteritems() if x
+        ]:
             logger.warning(f"Warning: Ignoring {len(missinglabel_inds)} (out of {len(X)}) training examples for which the label value in column '{self.label}' is missing")
             X = X.drop(missinglabel_inds, axis=0)
 
@@ -175,7 +171,7 @@ class DefaultLearner(AbstractLearner):
             w_val = None
 
         # TODO: Move this up to top of data before removing data, this way our feature generator is better
-        logger.log(20, f'Using Feature Generators to preprocess the data ...')
+        logger.log(20, 'Using Feature Generators to preprocess the data ...')
         if X_val is not None:
             # Do this if working with SKLearn models, otherwise categorical features may perform very badly on the test set
             logger.log(15, 'Performing general data preprocessing with merged train & validation data, so validation performance may not accurately reflect performance on new test data')
@@ -195,9 +191,6 @@ class DefaultLearner(AbstractLearner):
 
             X_val = X_super.head(len(X)+len(X_val)).tail(len(X_val)).set_index(X_val.index)
 
-            if X_unlabeled is not None:
-                X_unlabeled = X_super.tail(len(X_unlabeled)).set_index(X_unlabeled.index)
-            del X_super
         else:
             X_super = pd.concat([X, X_unlabeled], ignore_index=True)
             if self.feature_generator.is_fit():
@@ -213,9 +206,9 @@ class DefaultLearner(AbstractLearner):
                 X_super = self.fit_transform_features(X_super, y_super, problem_type=self.label_cleaner.problem_type_transform, eval_metric=self.eval_metric)
 
             X = X_super.head(len(X)).set_index(X.index)
-            if X_unlabeled is not None:
-                X_unlabeled = X_super.tail(len(X_unlabeled)).set_index(X_unlabeled.index)
-            del X_super
+        if X_unlabeled is not None:
+            X_unlabeled = X_super.tail(len(X_unlabeled)).set_index(X_unlabeled.index)
+        del X_super
         X, X_val = self.bundle_weights(X, w, X_val, w_val)  # TODO: consider not bundling sample-weights inside X, X_val
         return X, y, X_val, y_val, X_unlabeled, holdout_frac, num_bag_folds, groups
 
@@ -254,12 +247,10 @@ class DefaultLearner(AbstractLearner):
 
     def adjust_threshold_if_necessary(self, y, threshold, holdout_frac, num_bag_folds):
         new_threshold, new_holdout_frac, new_num_bag_folds = self._adjust_threshold_if_necessary(y, threshold, holdout_frac, num_bag_folds)
-        if new_threshold != threshold:
-            if new_threshold < threshold:
-                logger.warning(f'Warning: Updated label_count_threshold from {threshold} to {new_threshold} to avoid cutting too many classes.')
-        if new_holdout_frac != holdout_frac:
-            if new_holdout_frac > holdout_frac:
-                logger.warning(f'Warning: Updated holdout_frac from {holdout_frac} to {new_holdout_frac} to avoid cutting too many classes.')
+        if new_threshold != threshold and new_threshold < threshold:
+            logger.warning(f'Warning: Updated label_count_threshold from {threshold} to {new_threshold} to avoid cutting too many classes.')
+        if new_holdout_frac != holdout_frac and new_holdout_frac > holdout_frac:
+            logger.warning(f'Warning: Updated holdout_frac from {holdout_frac} to {new_holdout_frac} to avoid cutting too many classes.')
         if new_num_bag_folds != num_bag_folds:
             logger.warning(f'Warning: Updated num_bag_folds from {num_bag_folds} to {new_num_bag_folds} to avoid cutting too many classes.')
         return new_threshold, new_holdout_frac, new_num_bag_folds
@@ -270,11 +261,7 @@ class DefaultLearner(AbstractLearner):
         holdout_frac = max(holdout_frac, 1 / num_rows + 0.001)
         num_bag_folds = min(num_bag_folds, num_rows)
 
-        if num_bag_folds < 2:
-            minimum_safe_threshold = 1
-        else:
-            minimum_safe_threshold = 2
-
+        minimum_safe_threshold = 1 if num_bag_folds < 2 else 2
         if minimum_safe_threshold > new_threshold:
             new_threshold = minimum_safe_threshold
 

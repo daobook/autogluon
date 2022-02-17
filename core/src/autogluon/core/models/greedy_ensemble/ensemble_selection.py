@@ -22,8 +22,7 @@ class AbstractWeightedEnsemble:
     @staticmethod
     def weight_pred_probas(pred_probas, weights):
         preds_norm = [pred * weight for pred, weight in zip(pred_probas, weights)]
-        preds_ensemble = np.sum(preds_norm, axis=0)
-        return preds_ensemble
+        return np.sum(preds_norm, axis=0)
 
 
 class EnsembleSelection(AbstractWeightedEnsemble):
@@ -57,7 +56,7 @@ class EnsembleSelection(AbstractWeightedEnsemble):
         self.ensemble_size = int(self.ensemble_size)
         if self.ensemble_size < 1:
             raise ValueError('Ensemble size cannot be less than one!')
-        if not self.problem_type in PROBLEM_TYPES:
+        if self.problem_type not in PROBLEM_TYPES:
             raise ValueError('Unknown problem type %s.' % self.problem_type)
         # if not isinstance(self.metric, Scorer):
         #     raise ValueError('Metric must be of type scorer')
@@ -117,40 +116,34 @@ class EnsembleSelection(AbstractWeightedEnsemble):
             all_best = np.argwhere(scores == np.nanmin(scores)).flatten()
 
             if (len(all_best) > 1) and used_models:
-                # If tie, prioritize models already in ensemble to avoid unnecessarily large ensemble
-                new_all_best = []
-                for m in all_best:
-                    if m in used_models:
-                        new_all_best.append(m)
-                if new_all_best:
+                if new_all_best := [m for m in all_best if m in used_models]:
                     all_best = new_all_best
 
-            if len(all_best) > 1:
-                if self.tie_breaker == 'second_metric':
-                    if self.problem_type in ['binary', 'multiclass']:
-                        # Tiebreak with log_loss
-                        scores_tiebreak = np.zeros((len(all_best)))
-                        secondary_metric = log_loss
-                        fant_ensemble_prediction = np.zeros(weighted_ensemble_prediction.shape)
-                        index_map = {}
-                        for k, j in enumerate(all_best):
-                            index_map[k] = j
-                            pred = predictions[j]
-                            fant_ensemble_prediction[:] = weighted_ensemble_prediction + (1. / float(s + 1)) * pred
-                            scores_tiebreak[k] = self._calculate_regret(y_true=labels, y_pred_proba=fant_ensemble_prediction, metric=secondary_metric)
-                        all_best_tiebreak = np.argwhere(scores_tiebreak == np.nanmin(scores_tiebreak)).flatten()
-                        all_best = [index_map[index] for index in all_best_tiebreak]
+            if (
+                len(all_best) > 1
+                and self.tie_breaker == 'second_metric'
+                and self.problem_type in ['binary', 'multiclass']
+            ):
+                # Tiebreak with log_loss
+                scores_tiebreak = np.zeros((len(all_best)))
+                secondary_metric = log_loss
+                fant_ensemble_prediction = np.zeros(weighted_ensemble_prediction.shape)
+                index_map = {}
+                for k, j in enumerate(all_best):
+                    index_map[k] = j
+                    pred = predictions[j]
+                    fant_ensemble_prediction[:] = weighted_ensemble_prediction + (1. / float(s + 1)) * pred
+                    scores_tiebreak[k] = self._calculate_regret(y_true=labels, y_pred_proba=fant_ensemble_prediction, metric=secondary_metric)
+                all_best_tiebreak = np.argwhere(scores_tiebreak == np.nanmin(scores_tiebreak)).flatten()
+                all_best = [index_map[index] for index in all_best_tiebreak]
 
             best = self.random_state.choice(all_best)
             best_score = scores[best]
 
             # If first iteration
-            if i == 0:
-                # If abs value of min score is large enough, round to 6 decimal places to avoid floating point error deciding the best index.
-                # This avoids 2 models with the same pred proba both being used in the ensemble due to floating point error
-                if np.abs(best_score) > epsilon:
-                    round_scores = True
-                    best_score = best_score.round(round_decimals)
+            if i == 0 and np.abs(best_score) > epsilon:
+                round_scores = True
+                best_score = best_score.round(round_decimals)
 
             ensemble.append(predictions[best])
             trajectory.append(best_score)
@@ -182,7 +175,7 @@ class EnsembleSelection(AbstractWeightedEnsemble):
             self.trajectory_ = trajectory
             self.train_score_ = trajectory[-1]
 
-        logger.debug("Ensemble indices: "+str(self.indices_))
+        logger.debug(f'Ensemble indices: {str(self.indices_)}')
 
     def _calculate_regret(self, y_true, y_pred_proba, metric, sample_weight=None):
         if metric.needs_pred or metric.needs_quantile:

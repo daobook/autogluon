@@ -91,9 +91,8 @@ class AbstractModel:
         self.path_root = path
         if self.path_root is None:
             path_suffix = self.name
-            if len(self.name) > 0:
-                if self.name[0] != os.path.sep:
-                    path_suffix = os.path.sep + path_suffix
+            if len(self.name) > 0 and self.name[0] != os.path.sep:
+                path_suffix = os.path.sep + path_suffix
             # TODO: Would be ideal to not create dir, but still track that it is unique. However, this isn't possible to do without a global list of used dirs or using UUID.
             path_cur = setup_outputdir(path=None, create_dir=True, path_suffix=path_suffix)
             self.path_root = path_cur.rsplit(self.path_suffix, 1)[0]
@@ -135,15 +134,15 @@ class AbstractModel:
         else:
             self._user_params_aux = None
         if self._user_params_aux is None:
-            self._user_params_aux = dict()
+            self._user_params_aux = {}
         self._user_params = hyperparameters  # TODO: Delete after initialization?
         if self._user_params is None:
-            self._user_params = dict()
+            self._user_params = {}
 
-        self.params_trained = dict()
+        self.params_trained = {}
         self._is_initialized = False
         self._is_fit_metadata_registered = False
-        self._fit_metadata = dict()
+        self._fit_metadata = {}
 
     def _init_params(self):
         """Initializes model hyperparameters"""
@@ -153,7 +152,7 @@ class AbstractModel:
         if hyperparameters is not None:
             self.params.update(hyperparameters)
             self.nondefault_params = list(hyperparameters.keys())[:]  # These are hyperparameters that user has specified.
-        self.params_trained = dict()
+        self.params_trained = {}
 
     def _init_params_aux(self):
         """
@@ -209,7 +208,7 @@ class AbstractModel:
         Dictionary of auxiliary parameters that dictate various model-agnostic logic, such as:
             Which column dtypes are filtered out of the input data, or how much memory the model is allowed to use.
         """
-        default_auxiliary_params = dict(
+        return dict(
             max_memory_usage_ratio=1.0,  # Ratio of memory usage allowed by the model. Values > 1.0 have an increased risk of causing OOM errors. Used in memory checks during model training to avoid OOM errors.
             # TODO: Add more params
             # max_memory_usage=None,
@@ -229,7 +228,6 @@ class AbstractModel:
             # TODO: v0.1 Document get_features_kwargs_extra in task.fit
             get_features_kwargs_extra=None,  # If not None, applies an additional feature filter to the result of get_feature_kwargs. This should be reserved for users and be None by default. | Currently undocumented in task.
         )
-        return default_auxiliary_params
 
     def _set_default_param_value(self, param_name, param_value, params=None):
         if params is None:
@@ -265,8 +263,7 @@ class AbstractModel:
 
     @staticmethod
     def create_contexts(path_context):
-        path = path_context
-        return path
+        return path_context
 
     def rename(self, name: str):
         """Renames the model and updates self.path to reflect the updated name."""
@@ -466,11 +463,10 @@ class AbstractModel:
             self._is_fit_metadata_registered = True
 
     def _compute_fit_metadata(self, X_val=None, X_unlabeled=None, **kwargs):
-        fit_metadata = dict(
+        return dict(
             val_in_fit=X_val is not None,
             unlabeled_in_fit=X_unlabeled is not None
         )
-        return fit_metadata
 
     def fit(self, **kwargs):
         """
@@ -530,10 +526,7 @@ class AbstractModel:
             self._register_fit_metadata(**kwargs)
             self._validate_fit_memory_usage(**kwargs)
             out = self._fit(**kwargs)
-            if out is None:
-                return self
-            else:
-                return out
+            return self if out is None else out
         else:
             logger.warning(f'\tWarning: Model has no time left to train, skipping model... (Time Left = {round(kwargs["time_limit"], 1)}s)')
             raise TimeLimitExceeded
@@ -604,8 +597,9 @@ class AbstractModel:
         For regression problems, this returns the predicted values as a Series.
         """
         y_pred_proba = self.predict_proba(X, **kwargs)
-        y_pred = get_pred_from_proba(y_pred_proba=y_pred_proba, problem_type=self.problem_type)
-        return y_pred
+        return get_pred_from_proba(
+            y_pred_proba=y_pred_proba, problem_type=self.problem_type
+        )
 
     def predict_proba(self, X, normalize=None, **kwargs):
         """
@@ -631,8 +625,7 @@ class AbstractModel:
         X = self.preprocess(X, **kwargs)
 
         if self.problem_type in [REGRESSION, QUANTILE]:
-            y_pred = self.model.predict(X)
-            return y_pred
+            return self.model.predict(X)
 
         y_pred_proba = self.model.predict_proba(X)
         return self._convert_proba_to_unified_form(y_pred_proba)
@@ -645,17 +638,12 @@ class AbstractModel:
         For regression, converts y_pred_proba to a 1 dimensional array of predictions.
         """
         if self.problem_type == REGRESSION:
-            if len(y_pred_proba.shape) == 1:
-                return y_pred_proba
-            else:
-                return y_pred_proba[:, 1]
+            return y_pred_proba if len(y_pred_proba.shape) == 1 else y_pred_proba[:, 1]
         elif self.problem_type == BINARY:
-            if len(y_pred_proba.shape) == 1:
+            if len(y_pred_proba.shape) == 1 or y_pred_proba.shape[1] <= 1:
                 return y_pred_proba
-            elif y_pred_proba.shape[1] > 1:
-                return y_pred_proba[:, 1]
             else:
-                return y_pred_proba
+                return y_pred_proba[:, 1]
         elif y_pred_proba.shape[1] > 2:  # Multiclass, Softclass
             return y_pred_proba
         else:  # Unknown problem type
@@ -745,16 +733,12 @@ class AbstractModel:
         if self.features is not None:
             X = X[self.features]
 
-        if not features:
-            features = self.features
-        else:
-            features = list(features)
-
+        features = self.features if not features else list(features)
         # NOTE: Needed as bagged models 'features' attribute is not the same as childrens' 'features' attributes
         banned_features = [feature for feature in features if feature not in self.get_features()]
-        features_to_check = [feature for feature in features if feature not in banned_features]
-
-        if features_to_check:
+        if features_to_check := [
+            feature for feature in features if feature not in banned_features
+        ]:
             fi_df = self._compute_permutation_importance(X=X, y=y, features=features_to_check, silent=silent, importance_as_list=importance_as_list, **kwargs)
             n = fi_df.iloc[0]['n'] if len(fi_df) > 0 else 1
         else:
@@ -787,10 +771,7 @@ class AbstractModel:
         if eval_metric is None:
             eval_metric = self.eval_metric
         transform_func = self.preprocess
-        if eval_metric.needs_pred:
-            predict_func = self.predict
-        else:
-            predict_func = self.predict_proba
+        predict_func = self.predict if eval_metric.needs_pred else self.predict_proba
         transform_func_kwargs = dict(preprocess_stateful=False)
         predict_func_kwargs = dict(preprocess_nonadaptive=False)
 
@@ -819,15 +800,13 @@ class AbstractModel:
         if self._user_params_aux:
             hyperparameters[AG_ARGS_FIT] = self._user_params_aux.copy()
 
-        args = dict(
+        return dict(
             path=path,
             name=name,
             problem_type=problem_type,
             eval_metric=eval_metric,
             hyperparameters=hyperparameters,
         )
-
-        return args
 
     def convert_to_template(self):
         """
@@ -836,18 +815,14 @@ class AbstractModel:
         """
 
         params = self.get_params()
-        template = self.__class__(**params)
-
-        return template
+        return self.__class__(**params)
 
     def convert_to_refit_full_template(self):
         """After calling this function, returned model should be able to be fit without X_val, y_val using the iterations trained by the original model."""
         params = copy.deepcopy(self.get_params())
         params['hyperparameters'].update(self.params_trained)
         params['name'] = params['name'] + REFIT_FULL_SUFFIX
-        template = self.__class__(**params)
-
-        return template
+        return self.__class__(**params)
 
     def hyperparameter_tune(self, scheduler_options, time_limit=None, **kwargs):
         scheduler_options = copy.deepcopy(scheduler_options)
@@ -855,12 +830,10 @@ class AbstractModel:
             scheduler_options[1]['time_out'] = time_limit
         kwargs = self.initialize(time_limit=scheduler_options[1]['time_out'], **kwargs)
         resource = copy.deepcopy(scheduler_options[1]['resource'])
-        if 'num_cpus' in resource:
-            if resource['num_cpus'] == 'auto':
-                resource.pop('num_cpus')
-        if 'num_gpus' in resource:
-            if resource['num_gpus'] == 'auto':
-                resource.pop('num_gpus')
+        if 'num_cpus' in resource and resource['num_cpus'] == 'auto':
+            resource.pop('num_cpus')
+        if 'num_gpus' in resource and resource['num_gpus'] == 'auto':
+            resource.pop('num_gpus')
 
         scheduler_options[1]['resource'] = self._preprocess_fit_resources(silent=True, **resource)
         return self._hyperparameter_tune(scheduler_options=scheduler_options, **kwargs)
@@ -951,7 +924,7 @@ class AbstractModel:
         self.fit_time = None
         self.predict_time = None
         self.val_score = None
-        self.params_trained = dict()
+        self.params_trained = {}
 
     # TODO: Experimental, currently unused
     #  Has not been tested on Windows
@@ -961,8 +934,7 @@ class AbstractModel:
         # Taken from https://stackoverflow.com/a/1392549
         from pathlib import Path
         model_path = Path(self.path)
-        model_disk_size = sum(f.stat().st_size for f in model_path.glob('**/*') if f.is_file())
-        return model_disk_size
+        return sum(f.stat().st_size for f in model_path.glob('**/*') if f.is_file())
 
     # TODO: This results in a doubling of memory usage of the model to calculate its size.
     #  If the model takes ~40%+ of memory, this may result in an OOM error.
@@ -1033,7 +1005,7 @@ class AbstractModel:
         """
         Returns a dictionary of numerous fields describing the model.
         """
-        info = {
+        return {
             'name': self.name,
             'model_type': type(self).__name__,
             'problem_type': self.problem_type,
@@ -1054,7 +1026,6 @@ class AbstractModel:
             # 'disk_size': self.get_disk_size(),
             'memory_size': self.get_memory_size(),  # Memory usage of model in bytes
         }
-        return info
 
     @classmethod
     def load_info(cls, path, load_model_if_required=True) -> dict:
@@ -1121,16 +1092,14 @@ class AbstractModel:
 
     def _get_ag_params(self) -> dict:
         """Gets params that are not passed to the inner model, but are used by the wrapper."""
-        ag_param_names = self._ag_params()
-        if ag_param_names:
+        if ag_param_names := self._ag_params():
             return {key: val for key, val in self.params.items() if key in ag_param_names}
         else:
             return dict()
 
     def _get_model_params(self) -> dict:
         """Gets params that are passed to the inner model."""
-        ag_param_names = self._ag_params()
-        if ag_param_names:
+        if ag_param_names := self._ag_params():
             return {key: val for key, val in self.params.items() if key not in ag_param_names}
         else:
             return self._get_params()

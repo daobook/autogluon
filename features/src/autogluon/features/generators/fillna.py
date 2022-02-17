@@ -43,7 +43,7 @@ class FillNaFeatureGenerator(AbstractFeatureGenerator):
 
     def _fit_transform(self, X: DataFrame, **kwargs) -> (DataFrame, dict):
         features = self.feature_metadata_in.get_features()
-        self._fillna_feature_map = dict()
+        self._fillna_feature_map = {}
         for feature in features:
             feature_raw_type = self.feature_metadata_in.get_feature_type_raw(feature)
             feature_fillna_val = self.fillna_map.get(feature_raw_type, self.fillna_default)

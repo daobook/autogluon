@@ -63,9 +63,8 @@ class CategoryFeatureGenerator(AbstractFeatureGenerator):
         self._minimum_cat_count = minimum_cat_count
         self._maximum_num_cat = maximum_num_cat
         self.category_map = None
-        if fillna is not None:
-            if fillna not in ['mode']:
-                raise ValueError(f"fillna={fillna} is not a valid value. Valid values: {[None, 'mode']}")
+        if fillna is not None and fillna not in ['mode']:
+            raise ValueError(f"fillna={fillna} is not a valid value. Valid values: {[None, 'mode']}")
         self._fillna = fillna
         self._fillna_flag = self._fillna is not None
         self._fillna_map = None
@@ -99,7 +98,7 @@ class CategoryFeatureGenerator(AbstractFeatureGenerator):
 
     def _generate_features_category(self, X: DataFrame) -> DataFrame:
         if self.features_in:
-            X_category = dict()
+            X_category = {}
             if self.category_map is not None:
                 for column, column_map in self.category_map.items():
                     X_category[column] = pd.Categorical(X[column], categories=column_map)
@@ -112,42 +111,38 @@ class CategoryFeatureGenerator(AbstractFeatureGenerator):
         return X_category
 
     def _generate_category_map(self, X: DataFrame) -> (DataFrame, dict):
-        if self.features_in:
-            fill_nan_map = dict()
-            category_map = dict()
-            X_category = X.astype('category')
-            for column in X_category:
-                rank = X_category[column].value_counts().sort_values(ascending=True)
-                if self._minimum_cat_count is not None:
-                    rank = rank[rank >= self._minimum_cat_count]
-                if self._maximum_num_cat is not None:
-                    rank = rank[-self._maximum_num_cat:]
-                if self.cat_order == 'count' or self._minimum_cat_count is not None or self._maximum_num_cat is not None:
-                    category_list = list(rank.index)  # category_list in 'count' order
-                    if len(category_list) > 1:
-                        if self.cat_order == 'original':
-                            original_cat_order = list(X_category[column].cat.categories)
-                            set_category_list = set(category_list)
-                            category_list = [cat for cat in original_cat_order if cat in set_category_list]
-                        elif self.cat_order == 'alphanumeric':
-                            category_list.sort()
-                    X_category[column] = X_category[column].astype(CategoricalDtype(categories=category_list))  # TODO: Remove columns if all NaN after this?
-                    X_category[column] = X_category[column].cat.reorder_categories(category_list)
-                elif self.cat_order == 'alphanumeric':
-                    category_list = list(X_category[column].cat.categories)
-                    category_list.sort()
-                    X_category[column] = X_category[column].astype(CategoricalDtype(categories=category_list))
-                    X_category[column] = X_category[column].cat.reorder_categories(category_list)
-                category_map[column] = copy.deepcopy(X_category[column].cat.categories)
-                if self._fillna_flag:
-                    if self._fillna == 'mode':
-                        if len(rank) > 0:
-                            fill_nan_map[column] = list(rank.index)[-1]
-            if not self._fillna_flag:
-                fill_nan_map = None
-            return X_category, category_map, fill_nan_map
-        else:
+        if not self.features_in:
             return DataFrame(index=X.index), None, None
+        fill_nan_map = {}
+        category_map = {}
+        X_category = X.astype('category')
+        for column in X_category:
+            rank = X_category[column].value_counts().sort_values(ascending=True)
+            if self._minimum_cat_count is not None:
+                rank = rank[rank >= self._minimum_cat_count]
+            if self._maximum_num_cat is not None:
+                rank = rank[-self._maximum_num_cat:]
+            if self.cat_order == 'count' or self._minimum_cat_count is not None or self._maximum_num_cat is not None:
+                category_list = list(rank.index)  # category_list in 'count' order
+                if len(category_list) > 1:
+                    if self.cat_order == 'alphanumeric':
+                        category_list.sort()
+                    elif self.cat_order == 'original':
+                        original_cat_order = list(X_category[column].cat.categories)
+                        set_category_list = set(category_list)
+                        category_list = [cat for cat in original_cat_order if cat in set_category_list]
+                X_category[column] = X_category[column].astype(CategoricalDtype(categories=category_list))  # TODO: Remove columns if all NaN after this?
+                X_category[column] = X_category[column].cat.reorder_categories(category_list)
+            elif self.cat_order == 'alphanumeric':
+                category_list = sorted(X_category[column].cat.categories)
+                X_category[column] = X_category[column].astype(CategoricalDtype(categories=category_list))
+                X_category[column] = X_category[column].cat.reorder_categories(category_list)
+            category_map[column] = copy.deepcopy(X_category[column].cat.categories)
+            if self._fillna_flag and self._fillna == 'mode' and len(rank) > 0:
+                fill_nan_map[column] = list(rank.index)[-1]
+        if not self._fillna_flag:
+            fill_nan_map = None
+        return X_category, category_map, fill_nan_map
 
     def _remove_features_in(self, features: list):
         super()._remove_features_in(features)

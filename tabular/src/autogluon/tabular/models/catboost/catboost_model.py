@@ -59,10 +59,9 @@ class CatBoostModel(AbstractModel):
         return X
 
     def _estimate_memory_usage(self, X, **kwargs):
-        num_classes = self.num_classes if self.num_classes else 1  # self.num_classes could be None after initalization if it's a regression problem
+        num_classes = self.num_classes or 1
         data_mem_uasge = get_approximate_df_mem_usage(X).sum()
-        approx_mem_size_req = data_mem_uasge * 7 + data_mem_uasge / 4 * num_classes  # TODO: Extremely crude approximation, can be vastly improved
-        return approx_mem_size_req
+        return data_mem_uasge * 7 + data_mem_uasge / 4 * num_classes
 
     # TODO: Use Pool in preprocess, optimize bagging to do Pool.split() to avoid re-computing pool for each fold! Requires stateful + y
     #  Pool is much more memory efficient, avoids copying data twice in memory
@@ -92,7 +91,7 @@ class CatBoostModel(AbstractModel):
         model_type = CatBoostClassifier if self.problem_type in PROBLEM_TYPES_CLASSIFICATION else CatBoostRegressor
         num_rows_train = len(X)
         num_cols_train = len(X.columns)
-        num_classes = self.num_classes if self.num_classes else 1  # self.num_classes could be None after initalization if it's a regression problem
+        num_classes = self.num_classes or 1
 
         X = self.preprocess(X)
         cat_features = list(X.select_dtypes(include='category').columns)
@@ -109,21 +108,18 @@ class CatBoostModel(AbstractModel):
             if isinstance(early_stopping_rounds, (str, tuple, list)):
                 early_stopping_rounds = self._get_early_stopping_rounds(num_rows_train=num_rows_train, strategy=early_stopping_rounds)
 
-        if params.get('allow_writing_files', False):
-            if 'train_dir' not in params:
-                try:
-                    # TODO: What if path is in S3?
-                    os.makedirs(os.path.dirname(self.path), exist_ok=True)
-                except:
-                    pass
-                else:
-                    params['train_dir'] = self.path + 'catboost_info'
+        if params.get('allow_writing_files', False) and 'train_dir' not in params:
+            try:
+                # TODO: What if path is in S3?
+                os.makedirs(os.path.dirname(self.path), exist_ok=True)
+            except:
+                pass
+            else:
+                params['train_dir'] = f'{self.path}catboost_info'
 
         # TODO: Add more control over these params (specifically early_stopping_rounds)
         verbosity = kwargs.get('verbosity', 2)
-        if verbosity <= 1:
-            verbose = False
-        elif verbosity == 2:
+        if verbosity <= 1 or verbosity == 2:
             verbose = False
         elif verbosity == 3:
             verbose = 20
@@ -132,30 +128,42 @@ class CatBoostModel(AbstractModel):
 
         num_features = len(self._features)
 
-        if num_gpus != 0:
-            if 'task_type' not in params:
-                params['task_type'] = 'GPU'
-                logger.log(20, f'\tTraining {self.name} with GPU, note that this may negatively impact model quality compared to CPU training.')
-                # TODO: Confirm if GPU is used in HPO (Probably not)
-                # TODO: Adjust max_bins to 254?
-
+        if num_gpus != 0 and 'task_type' not in params:
+            params['task_type'] = 'GPU'
+            logger.log(20, f'\tTraining {self.name} with GPU, note that this may negatively impact model quality compared to CPU training.')
         if params.get('task_type', None) == 'GPU':
             if 'colsample_bylevel' in params:
                 params.pop('colsample_bylevel')
-                logger.log(30, f'\t\'colsample_bylevel\' is not supported on GPU, using default value (Default = 1).')
+                logger.log(
+                    30,
+                    "\t'colsample_bylevel' is not supported on GPU, using default value (Default = 1).",
+                )
+
             if 'rsm' in params:
                 params.pop('rsm')
-                logger.log(30, f'\t\'rsm\' is not supported on GPU, using default value (Default = 1).')
+                logger.log(
+                    30,
+                    "\t'rsm' is not supported on GPU, using default value (Default = 1).",
+                )
+
 
         if self.problem_type == MULTICLASS and 'rsm' not in params and 'colsample_bylevel' not in params and num_features > 1000:
             # Subsample columns to speed up training
             if params.get('task_type', None) != 'GPU':  # RSM does not work on GPU
                 params['colsample_bylevel'] = max(min(1.0, 1000 / num_features), 0.05)
                 logger.log(30, f'\tMany features detected ({num_features}), dynamically setting \'colsample_bylevel\' to {params["colsample_bylevel"]} to speed up training (Default = 1).')
-                logger.log(30, f'\tTo disable this functionality, explicitly specify \'colsample_bylevel\' in the model hyperparameters.')
+                logger.log(
+                    30,
+                    "\tTo disable this functionality, explicitly specify 'colsample_bylevel' in the model hyperparameters.",
+                )
+
             else:
                 params['colsample_bylevel'] = 1.0
-                logger.log(30, f'\t\'colsample_bylevel\' is not supported on GPU, using default value (Default = 1).')
+                logger.log(
+                    30,
+                    "\t'colsample_bylevel' is not supported on GPU, using default value (Default = 1).",
+                )
+
 
         logger.log(15, f'\tCatboost model hyperparameters: {params}')
 

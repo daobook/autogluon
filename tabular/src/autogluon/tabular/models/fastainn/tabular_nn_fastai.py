@@ -105,8 +105,7 @@ class NNFastAiTabularModel(AbstractModel):
         df_train, train_idx, val_idx = self._generate_datasets(X, y_norm, X_val, y_val_norm)
         y_block = RegressionBlock() if self.problem_type in [REGRESSION, QUANTILE] else CategoryBlock()
 
-        # Copy cat_columns and cont_columns because TabularList is mutating the list
-        data = TabularPandas(
+        return TabularPandas(
             df_train,
             cat_names=self.cat_columns.copy(),
             cont_names=self.cont_columns.copy(),
@@ -115,7 +114,6 @@ class NNFastAiTabularModel(AbstractModel):
             y_names=LABEL,
             splits=IndexSplitter(val_idx)(range_of(df_train)),
         )
-        return data
 
     def _preprocess(self, X: pd.DataFrame, fit=False, **kwargs):
         X = super()._preprocess(X=X, **kwargs)
@@ -138,7 +136,7 @@ class NNFastAiTabularModel(AbstractModel):
             logger.log(15, f'Using {num_cat_cols_use}/{num_cat_cols_og} categorical features')
 
             nullable_numeric_features = self._feature_metadata.get_features(valid_raw_types=[R_FLOAT, R_DATETIME], invalid_special_types=[S_TEXT_SPECIAL])
-            self.columns_fills = dict()
+            self.columns_fills = {}
             for c in nullable_numeric_features:  # No need to do this for int features, int can't have null
                 self.columns_fills[c] = X[c].mean()
         X = self._fill_missing(X)
@@ -306,17 +304,14 @@ class NNFastAiTabularModel(AbstractModel):
     def _get_epochs_number(self, samples_num, epochs, batch_size, time_left=None, min_batches_count=30, default_epochs=30):
         if epochs == 'auto':
             batches_count = int(samples_num / batch_size) + 1
-            if not time_left:
+            if not time_left or batches_count < min_batches_count:
                 return default_epochs
-            elif batches_count < min_batches_count:
-                return default_epochs
-            else:
-                est_batch_time = self._measure_batch_times(min_batches_count)
-                est_epoch_time = batches_count * est_batch_time * 1.1
-                est_max_epochs = int(time_left / est_epoch_time)
-                epochs = min(default_epochs, est_max_epochs)
-                epochs = max(epochs, 0)
-                logger.log(15, f'Automated epochs selection: training for {epochs} epoch(s). Estimated time budget use {epochs * est_epoch_time:.2f} / {time_left:.2f} sec')
+            est_batch_time = self._measure_batch_times(min_batches_count)
+            est_epoch_time = batches_count * est_batch_time * 1.1
+            est_max_epochs = int(time_left / est_epoch_time)
+            epochs = min(default_epochs, est_max_epochs)
+            epochs = max(epochs, 0)
+            logger.log(15, f'Automated epochs selection: training for {epochs} epoch(s). Estimated time budget use {epochs * est_epoch_time:.2f} / {time_left:.2f} sec')
         return epochs
 
     def _measure_batch_times(self, min_batches_count):
@@ -329,8 +324,7 @@ class NNFastAiTabularModel(AbstractModel):
                     self.model.fit(1, lr=0, cbs=[batch_time_tracker_callback])
         except CancelFitException:
             pass  # expected early exit
-        batch_time = batch_time_tracker_callback.batch_measured_time
-        return batch_time
+        return batch_time_tracker_callback.batch_measured_time
 
     def _generate_datasets(self, X, y, X_val, y_val):
         df_train = pd.concat([X, X_val], ignore_index=True)
@@ -453,39 +447,34 @@ class NNFastAiTabularModel(AbstractModel):
         from fastai.metrics import rmse, mse, mae, accuracy, FBeta, RocAucBinary, Precision, Recall, R2Score
         from .fastai_helpers import medae
         from .quantile_helpers import HuberPinballLoss
-        metrics_map = {
+        return {
             # Regression
             'root_mean_squared_error': rmse,
             'mean_squared_error': mse,
             'mean_absolute_error': mae,
             'r2': R2Score(),
             'median_absolute_error': medae,
-
             # Classification
             'accuracy': accuracy,
-
             'f1': FBeta(beta=1),
             'f1_macro': FBeta(beta=1, average='macro'),
             'f1_micro': FBeta(beta=1, average='micro'),
-            'f1_weighted': FBeta(beta=1, average='weighted'),  # this one has some issues
-
+            'f1_weighted': FBeta(
+                beta=1, average='weighted'
+            ),  # this one has some issues
             'roc_auc': RocAucBinary(),
-
             'precision': Precision(),
             'precision_macro': Precision(average='macro'),
             'precision_micro': Precision(average='micro'),
             'precision_weighted': Precision(average='weighted'),
-
             'recall': Recall(),
             'recall_macro': Recall(average='macro'),
             'recall_micro': Recall(average='micro'),
             'recall_weighted': Recall(average='weighted'),
             'log_loss': None,
-
             'pinball_loss': HuberPinballLoss(quantile_levels=self.quantile_levels)
             # Not supported: pac_score
         }
-        return metrics_map
 
     def _estimate_memory_usage(self, X, **kwargs):
         return 10 * get_approximate_df_mem_usage(X).sum()

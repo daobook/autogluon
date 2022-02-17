@@ -63,15 +63,21 @@ class DropDuplicatesFeatureGenerator(AbstractFeatureGenerator):
 
         X_columns = set(X.columns)
         features_to_check_numeric = feature_metadata_in.get_features(valid_raw_types=[R_INT, R_FLOAT])
-        features_to_check_numeric = [feature for feature in features_to_check_numeric if feature in X_columns]
-        if features_to_check_numeric:
+        if features_to_check_numeric := [
+            feature
+            for feature in features_to_check_numeric
+            if feature in X_columns
+        ]:
             features_to_remove += cls._drop_duplicate_features_numeric(X=X[features_to_check_numeric], keep=keep)
             X = X.drop(columns=features_to_check_numeric)
 
         X_columns = set(X.columns)
         features_to_check_categorical = feature_metadata_in.get_features(valid_raw_types=[R_CATEGORY, R_BOOL])
-        features_to_check_categorical = [feature for feature in features_to_check_categorical if feature in X_columns]
-        if features_to_check_categorical:
+        if features_to_check_categorical := [
+            feature
+            for feature in features_to_check_categorical
+            if feature in X_columns
+        ]:
             features_to_remove += cls._drop_duplicate_features_categorical(X=X[features_to_check_categorical], keep=keep)
             X = X.drop(columns=features_to_check_categorical)
 
@@ -85,8 +91,7 @@ class DropDuplicatesFeatureGenerator(AbstractFeatureGenerator):
         """Generic duplication dropping method. Much slower than optimized variants, but can handle all data types."""
         X_columns = list(X.columns)
         features_to_keep = set(X.T.drop_duplicates(keep=keep).T.columns)
-        features_to_remove = [column for column in X_columns if column not in features_to_keep]
-        return features_to_remove
+        return [column for column in X_columns if column not in features_to_keep]
 
     @classmethod
     def _drop_duplicate_features_numeric(cls, X: DataFrame, keep: Union[str, bool] = 'first'):
@@ -119,9 +124,7 @@ class DropDuplicatesFeatureGenerator(AbstractFeatureGenerator):
             mapping_features_val_dict[feature] = dict(zip(feature_unique_vals, range(len(feature_unique_vals))))
             features_unique_count_dict[len(feature_unique_vals)].append(feature)
 
-        for feature_unique_count in features_unique_count_dict:
-            # Only need to check features that have same amount of unique values.
-            features_to_check = features_unique_count_dict[feature_unique_count]
+        for feature_unique_count, features_to_check in features_unique_count_dict.items():
             if len(features_to_check) <= 1:
                 continue
             mapping_features_val_dict_cur = {feature: mapping_features_val_dict[feature] for feature in features_to_check}

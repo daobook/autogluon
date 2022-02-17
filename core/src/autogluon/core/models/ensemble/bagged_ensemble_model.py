@@ -81,10 +81,7 @@ class BaggedEnsembleModel(AbstractModel):
         return self.is_fit() and self.params.get('save_bag_folds', True)
 
     def is_stratified(self):
-        if self.problem_type in [REGRESSION, QUANTILE, SOFTCLASS]:
-            return False
-        else:
-            return True
+        return self.problem_type not in [REGRESSION, QUANTILE, SOFTCLASS]
 
     def is_fit(self):
         return len(self.models) != 0
@@ -115,15 +112,14 @@ class BaggedEnsembleModel(AbstractModel):
         self.normalize_pred_probas = child.normalize_pred_probas
 
     def preprocess(self, X, preprocess_nonadaptive=True, model=None, **kwargs):
-        if preprocess_nonadaptive:
-            if model is None:
-                if not self.models:
-                    return X
-                model = self.models[0]
-            model = self.load_child(model)
-            return model.preprocess(X, preprocess_stateful=False)
-        else:
+        if not preprocess_nonadaptive:
             return X
+        if model is None:
+            if not self.models:
+                return X
+            model = self.models[0]
+        model = self.load_child(model)
+        return model.preprocess(X, preprocess_stateful=False)
 
     def _get_cv_splitter(self, n_splits, n_repeats, groups=None):
         return CVSplitter(n_splits=n_splits, n_repeats=n_repeats, groups=groups, stratified=self.is_stratified(), random_state=self._random_state)
@@ -196,21 +192,17 @@ class BaggedEnsembleModel(AbstractModel):
             self._fit_folds(X=X, y=y, model_base=model_base, X_pseudo=X_pseudo, y_pseudo=y_pseudo,
                             k_fold=k_fold, k_fold_start=k_fold_start, k_fold_end=k_fold_end,
                             n_repeats=n_repeats, n_repeat_start=n_repeat_start, save_folds=save_bag_folds, groups=groups, **kwargs)
-            # FIXME: Don't save folds except for refit
-            # FIXME: Cleanup self
-            # FIXME: Don't add `_FULL` to name
-            if refit_folds:
-                refit_template = self.convert_to_refit_full_template()
-                refit_template.params['use_child_oof'] = False
-                kwargs['time_limit'] = None
-                refit_template.fit(X=X, y=y, k_fold=1, **kwargs)
-                refit_template._oof_pred_proba = self._oof_pred_proba
-                refit_template._oof_pred_model_repeats = self._oof_pred_model_repeats
-                refit_template._child_oof = True
-                refit_template.fit_time += self.fit_time + self.predict_time
-                return refit_template
-            else:
+            if not refit_folds:
                 return self
+            refit_template = self.convert_to_refit_full_template()
+            refit_template.params['use_child_oof'] = False
+            kwargs['time_limit'] = None
+            refit_template.fit(X=X, y=y, k_fold=1, **kwargs)
+            refit_template._oof_pred_proba = self._oof_pred_proba
+            refit_template._oof_pred_model_repeats = self._oof_pred_model_repeats
+            refit_template._child_oof = True
+            refit_template.fit_time += self.fit_time + self.predict_time
+            return refit_template
 
     def _validate_bag_kwargs(self, *,
                              k_fold,
@@ -592,14 +584,14 @@ class BaggedEnsembleModel(AbstractModel):
                     time_left = time_limit - (time_now - time_start)
                     time_child_average = (time_now - time_start) / children_completed
                     if time_left < (time_child_average * 1.1):
-                        log_final_suffix = f' (Early stopping due to lack of time...)'
+                        log_final_suffix = ' (Early stopping due to lack of time...)'
                         early_stop = True
                         break
             if early_stop:
                 break
             model_index += k
         # TODO: DON'T THROW AWAY SAMPLES! USE LARGER N
-        fi_list_dict = dict()
+        fi_list_dict = {}
         for val in fi_fold_list:
             val = val['importance'].to_dict()  # TODO: Don't throw away stddev information of children
             for key in val:
@@ -635,16 +627,13 @@ class BaggedEnsembleModel(AbstractModel):
         init_args['hyperparameters']['save_bag_folds'] = True  # refit full models must save folds
         init_args['model_base'] = self.convert_to_refit_full_template_child()
         init_args['name'] = init_args['name'] + REFIT_FULL_SUFFIX
-        model_full_template = self.__class__(**init_args)
-        return model_full_template
+        return self.__class__(**init_args)
 
     def convert_to_refit_full_template_child(self):
         refit_params_trained = self._get_compressed_params_trained()
         refit_params = copy.deepcopy(self._get_model_base().get_params())
         refit_params['hyperparameters'].update(refit_params_trained)
-        refit_child_template = self._child_type(**refit_params)
-
-        return refit_child_template
+        return self._child_type(**refit_params)
 
     def get_params(self):
         init_args = dict(
@@ -666,7 +655,7 @@ class BaggedEnsembleModel(AbstractModel):
                 for child in self.models
             ]
 
-        model_params_compressed = dict()
+        model_params_compressed = {}
         for param in model_params_list[0].keys():
             model_param_vals = [model_params[param] for model_params in model_params_list]
             if all(isinstance(val, bool) for val in model_param_vals):
@@ -693,10 +682,7 @@ class BaggedEnsembleModel(AbstractModel):
         return self._get_compressed_params(model_params_list=model_params_list)
 
     def _get_model_base(self):
-        if self.model_base is None:
-            return self.load_model_base()
-        else:
-            return self.model_base
+        return self.load_model_base() if self.model_base is None else self.model_base
 
     def _add_child_times_to_bag(self, model):
         if self.fit_time is None:
@@ -732,7 +718,11 @@ class BaggedEnsembleModel(AbstractModel):
     @classmethod
     def load_oof(cls, path, verbose=True):
         try:
-            oof = load_pkl.load(path=path + 'utils' + os.path.sep + cls._oof_filename, verbose=verbose)
+            oof = load_pkl.load(
+                path=f'{path}utils{os.path.sep}{cls._oof_filename}',
+                verbose=verbose,
+            )
+
             oof_pred_proba = oof['_oof_pred_proba']
             oof_pred_model_repeats = oof['_oof_pred_model_repeats']
         except FileNotFoundError:
@@ -743,10 +733,8 @@ class BaggedEnsembleModel(AbstractModel):
         return cls._oof_pred_proba_func(oof_pred_proba=oof_pred_proba, oof_pred_model_repeats=oof_pred_model_repeats)
 
     def _load_oof(self):
-        if self._oof_pred_proba is not None:
-            pass
-        else:
-            oof = load_pkl.load(path=self.path + 'utils' + os.path.sep + self._oof_filename)
+        if self._oof_pred_proba is None:
+            oof = load_pkl.load(path=f'{self.path}utils{os.path.sep}{self._oof_filename}')
             self._oof_pred_proba = oof['_oof_pred_proba']
             self._oof_pred_model_repeats = oof['_oof_pred_model_repeats']
 
@@ -758,10 +746,13 @@ class BaggedEnsembleModel(AbstractModel):
                 self.models[i] = child_model
 
     def load_model_base(self):
-        return load_pkl.load(path=self.path + 'utils' + os.path.sep + 'model_template.pkl')
+        return load_pkl.load(path=f'{self.path}utils{os.path.sep}model_template.pkl')
 
     def save_model_base(self, model_base):
-        save_pkl.save(path=self.path + 'utils' + os.path.sep + 'model_template.pkl', object=model_base)
+        save_pkl.save(
+            path=f'{self.path}utils{os.path.sep}model_template.pkl',
+            object=model_base,
+        )
 
     def save(self, path=None, verbose=True, save_oof=True, save_children=False) -> str:
         if path is None:
@@ -777,10 +768,10 @@ class BaggedEnsembleModel(AbstractModel):
             self.models = model_names
 
         if save_oof and self._oof_pred_proba is not None:
-            save_pkl.save(path=path + 'utils' + os.path.sep + self._oof_filename, object={
-                '_oof_pred_proba': self._oof_pred_proba,
-                '_oof_pred_model_repeats': self._oof_pred_model_repeats,
-            })
+            save_pkl.save(path=f'{path}utils{os.path.sep}{self._oof_filename}', object={
+                        '_oof_pred_proba': self._oof_pred_proba,
+                        '_oof_pred_model_repeats': self._oof_pred_model_repeats,
+                    })
             self._oof_pred_proba = None
             self._oof_pred_model_repeats = None
 
@@ -792,20 +783,20 @@ class BaggedEnsembleModel(AbstractModel):
         super().reduce_memory_size(remove_fit=remove_fit, remove_info=remove_info, requires_save=requires_save, **kwargs)
         if remove_fit_stack:
             try:
-                os.remove(self.path + 'utils' + os.path.sep + self._oof_filename)
+                os.remove(f'{self.path}utils{os.path.sep}{self._oof_filename}')
             except FileNotFoundError:
                 pass
             if requires_save:
                 self._oof_pred_proba = None
                 self._oof_pred_model_repeats = None
             try:
-                os.remove(self.path + 'utils' + os.path.sep + 'model_template.pkl')
+                os.remove(f'{self.path}utils{os.path.sep}model_template.pkl')
             except FileNotFoundError:
                 pass
             if requires_save:
                 self.model_base = None
             try:
-                os.rmdir(self.path + 'utils')
+                os.rmdir(f'{self.path}utils')
             except OSError:
                 pass
         if reduce_children:
@@ -829,10 +820,7 @@ class BaggedEnsembleModel(AbstractModel):
         children_info = self._get_child_info()
         child_memory_sizes = [child['memory_size'] for child in children_info.values()]
         sum_memory_size_child = sum(child_memory_sizes)
-        if child_memory_sizes:
-            max_memory_size_child = max(child_memory_sizes)
-        else:
-            max_memory_size_child = 0
+        max_memory_size_child = max(child_memory_sizes) if child_memory_sizes else 0
         if self.low_memory:
             max_memory_size = info['memory_size'] + sum_memory_size_child
             min_memory_size = info['memory_size'] + max_memory_size_child
@@ -887,7 +875,7 @@ class BaggedEnsembleModel(AbstractModel):
         pass
 
     def _get_child_info(self):
-        child_info_dict = dict()
+        child_info_dict = {}
         for model in self.models:
             if isinstance(model, str):
                 child_path = self.create_contexts(self.path + model + os.path.sep)

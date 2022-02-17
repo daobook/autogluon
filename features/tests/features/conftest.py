@@ -166,14 +166,13 @@ class DataHelper:
 
     @staticmethod
     def generate_multi_feature_full() -> DataFrame:
-        df = pd.concat(
+        return pd.concat(
             [
                 DataHelper.generate_multi_feature_standard(),
                 DataHelper.generate_multi_feature_special(),
             ],
             axis=1,
         )
-        return df
 
 
 @pytest.fixture

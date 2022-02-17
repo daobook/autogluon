@@ -23,7 +23,7 @@ def save(path, object, format=None, verbose=True, **kwargs):
 
 def save_with_fn(path, object, pickle_fn, format=None, verbose=True, compression_fn=None, compression_fn_kwargs=None):
     if verbose:
-        logger.log(15, 'Saving '+str(path))
+        logger.log(15, f'Saving {str(path)}')
     if s3_utils.is_s3_url(path):
         format = 's3'
     if format == 's3':

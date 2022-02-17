@@ -32,7 +32,7 @@ class CatToInt:
         self.max_levels = max_levels
         self.fillna_val = fillna_val
         self.infrequent_val = infrequent_val
-        self.cats = dict()
+        self.cats = {}
         self.num_cols = None
         self._dtype = None
 
@@ -81,23 +81,14 @@ class CatToInt:
             if type(max_val) == str:
                 max_dtype = np.min_scalar_type(max_val)
             else:
-                if max_val_all is None:
-                    max_val_all = max_val
-                else:
-                    max_val_all = max(max_val_all, max_val)
+                max_val_all = max_val if max_val_all is None else max(max_val_all, max_val)
                 max_val_with_buffer = max_val + dtype_buffer
                 max_dtype = np.min_scalar_type(max_val_with_buffer)
             min_dtype = np.min_scalar_type(min_val)
             cur_dtype = np.promote_types(min_dtype, max_dtype)
 
-            if dtype is None:
-                dtype = cur_dtype
-            else:
-                dtype = np.promote_types(dtype, cur_dtype)
-        if max_val_all is None:
-            fillna_val = 0
-        else:
-            fillna_val = max_val_all + 1
+            dtype = cur_dtype if dtype is None else np.promote_types(dtype, cur_dtype)
+        fillna_val = 0 if max_val_all is None else max_val_all + 1
         return dtype, fillna_val
 
 

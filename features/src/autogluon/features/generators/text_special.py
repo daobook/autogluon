@@ -44,7 +44,7 @@ class TextSpecialFeatureGenerator(AbstractFeatureGenerator):
         if symbols is None:
             symbols = ['!', '?', '@', '%', '$', '*', '&', '#', '^', '.', ':', ' ', '/', ';', '-', '=']
         self._symbols = symbols  # Symbols to generate count and ratio features for.
-        self._symbols_per_feature = dict()
+        self._symbols_per_feature = {}
         self._min_occur_ratio = min_occur_ratio
         self._min_occur_offset = min_occur_offset
         if bin_features:
@@ -63,11 +63,20 @@ class TextSpecialFeatureGenerator(AbstractFeatureGenerator):
         return self._generate_features_text_special(X)
 
     def _compute_feature_names_dict(self) -> dict:
-        feature_names = dict()
+        feature_names = {}
         for feature in self.features_in:
-            feature_names_cur = dict()
-            for feature_name_base in ['char_count', 'word_count', 'capital_ratio', 'lower_ratio', 'digit_ratio', 'special_ratio']:
-                feature_names_cur[feature_name_base] = f'{feature}.{feature_name_base}'
+            feature_names_cur = {
+                feature_name_base: f'{feature}.{feature_name_base}'
+                for feature_name_base in [
+                    'char_count',
+                    'word_count',
+                    'capital_ratio',
+                    'lower_ratio',
+                    'digit_ratio',
+                    'special_ratio',
+                ]
+            }
+
             symbols = self._symbols_per_feature[feature]
             for symbol in symbols:
                 feature_names_cur[symbol] = {}
@@ -81,7 +90,7 @@ class TextSpecialFeatureGenerator(AbstractFeatureGenerator):
         return dict(required_special_types=[S_TEXT], invalid_special_types=[S_IMAGE_PATH])
 
     def _filter_symbols(self, X: DataFrame, symbols: list):
-        symbols_per_feature = dict()
+        symbols_per_feature = {}
         if self.features_in:
             num_samples = len(X)
             occur_threshold = min(np.ceil(self._min_occur_offset + num_samples * self._min_occur_ratio), np.ceil(num_samples / 2))
@@ -96,7 +105,7 @@ class TextSpecialFeatureGenerator(AbstractFeatureGenerator):
 
     def _generate_features_text_special(self, X: DataFrame) -> DataFrame:
         if self.features_in:
-            X_text_special_combined = dict()
+            X_text_special_combined = {}
             for nlp_feature in self.features_in:
                 X_text_special_combined = self._generate_text_special(X[nlp_feature], nlp_feature, symbols=self._symbols_per_feature[nlp_feature], X_dict=X_text_special_combined)
             X_text_special_combined = pd.DataFrame(X_text_special_combined, index=X.index)

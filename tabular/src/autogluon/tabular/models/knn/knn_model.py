@@ -83,8 +83,7 @@ class KNNModel(AbstractModel):
 
     # TODO: Enable HPO for KNN
     def _get_default_searchspace(self):
-        spaces = {}
-        return spaces
+        return {}
 
     def _set_cpu_params(self, num_cpus):
         self.params['n_jobs'] = num_cpus
@@ -111,8 +110,7 @@ class KNNModel(AbstractModel):
 
     def _estimate_memory_usage(self, X, **kwargs):
         model_size_bytes = 4 * X.shape[0] * X.shape[1]  # Assuming float32 types
-        expected_final_model_size_bytes = model_size_bytes * 3.6 # Roughly what can be expected of the final KNN model in memory size
-        return expected_final_model_size_bytes
+        return model_size_bytes * 3.6
 
     def _validate_fit_memory_usage(self, **kwargs):
         max_memory_usage_ratio = self.params_aux['max_memory_usage_ratio']

@@ -32,7 +32,7 @@ def load(path, delimiter=None, encoding='utf-8', columns_to_keep=None, dtype=Non
         format = 'multipart_s3'
     elif path[-1] == '/' and not s3_utils.is_s3_url(path):  # and path[:2] != 's3'
         format = 'multipart_local'
-    elif '.parquet' in path or '.pq' in path or path[-1] == '/':
+    elif '.parquet' in path or '.pq' in path:
         format = 'parquet'
     else:
         format = 'csv'
@@ -77,7 +77,7 @@ def load(path, delimiter=None, encoding='utf-8', columns_to_keep=None, dtype=Non
         if columns_to_keep is not None:
             df = df[columns_to_keep]
     else:
-        raise Exception('file format ' + format + ' not supported!')
+        raise Exception(f'file format {format} not supported!')
 
     row_count = df.shape[0]
 
@@ -90,18 +90,45 @@ def load(path, delimiter=None, encoding='utf-8', columns_to_keep=None, dtype=Non
         else:
             df = filters(df)
 
-    logger.log(20, "Loaded data from: " +str(path)+" | Columns = "+str(column_count_trimmed)+" / "+
-               str(column_count_full)+ " | Rows = "+str(row_count)+" -> "+ str(len(df)))
+    logger.log(
+        20,
+        (
+            (
+                (
+                    f'Loaded data from: {str(path)} | Columns = '
+                    + str(column_count_trimmed)
+                    + " / "
+                    + str(column_count_full)
+                )
+                + " | Rows = "
+            )
+            + str(row_count)
+            + " -> "
+        )
+        + str(len(df)),
+    )
+
     return df
 
 
 def load_multipart_child(chunk):
     path, delimiter, encoding, columns_to_keep, dtype, header, names, format, nrows, skiprows, usecols, low_memory, converters, filters = chunk
-    df = load(path=path, delimiter=delimiter, encoding=encoding, columns_to_keep=columns_to_keep,
-            dtype=dtype, header=header, names=names, format=format,
-            nrows=nrows, skiprows=skiprows, usecols=usecols, low_memory=low_memory, converters=converters,
-            filters=filters)
-    return df
+    return load(
+        path=path,
+        delimiter=delimiter,
+        encoding=encoding,
+        columns_to_keep=columns_to_keep,
+        dtype=dtype,
+        header=header,
+        names=names,
+        format=format,
+        nrows=nrows,
+        skiprows=skiprows,
+        usecols=usecols,
+        low_memory=low_memory,
+        converters=converters,
+        filters=filters,
+    )
 
 
 def load_multipart(paths, delimiter=',', encoding='utf-8', columns_to_keep=None, dtype=None, header=0,
@@ -109,11 +136,10 @@ def load_multipart(paths, delimiter=',', encoding='utf-8', columns_to_keep=None,
                    filters=None, worker_count=None, multiprocessing_method='forkserver'):
     cpu_count = multiprocessing.cpu_count()
     workers = int(round(cpu_count))
-    if worker_count is not None:
-        if worker_count <= workers:
-            workers = worker_count
+    if worker_count is not None and worker_count <= workers:
+        workers = worker_count
 
-    logger.log(15, 'Load multipart running pool with '+str(workers)+' workers...')
+    logger.log(15, f'Load multipart running pool with {str(workers)} workers...')
 
     full_chunks = [[
         path, delimiter, encoding, columns_to_keep, dtype, header, names,
@@ -138,12 +164,8 @@ def load_multi(path_list, delimiter=',', encoding='utf-8', columns_to_keep_list=
 
     df_list = []
     for i in range(num_files):
-        columns_to_keep = None
-        dtype = None
-        if dtype_list:
-            dtype = dtype_list[i]
-        if columns_to_keep_list:
-            columns_to_keep = columns_to_keep_list[i]
+        dtype = dtype_list[i] if dtype_list else None
+        columns_to_keep = columns_to_keep_list[i] if columns_to_keep_list else None
         df = load(path_list[i], delimiter=delimiter, encoding=encoding, columns_to_keep=columns_to_keep, dtype=dtype)
         df_list.append(df)
 
@@ -151,7 +173,13 @@ def load_multi(path_list, delimiter=',', encoding='utf-8', columns_to_keep_list=
 
     column_count = len(list(df_multi.columns.values))
     row_count = df_multi.shape[0]
-    logger.log(20, "Loaded data from "+str(num_files)+" files | Columns = "+str(column_count)+" | Rows = "+str(row_count))
+    logger.log(
+        20,
+        f'Loaded data from {num_files} files | Columns = {column_count}'
+        + " | Rows = "
+        + str(row_count),
+    )
+
     return df_multi
 
 
@@ -159,12 +187,17 @@ def load_multipart_s3(bucket, prefix, columns_to_keep=None, dtype=None, sample_c
     if prefix[-1] == '/':
         prefix = prefix[:-1]
     files = list_bucket_prefix_suffix_s3(bucket=bucket, prefix=prefix, suffix='/part-')
-    files_cleaned = [file for file in files if prefix + '/part-' in file]
+    files_cleaned = [file for file in files if f'{prefix}/part-' in file]
     paths_full = [s3_utils.s3_bucket_prefix_to_path(bucket=bucket, prefix=file, version='s3') for file in files_cleaned]
     if sample_count is not None:
         logger.log(15, 'Load multipart s3 taking sample of '+str(sample_count)+' out of '+str(len(paths_full))+' files to load')
         paths_full = paths_full[:sample_count]
 
-    df = load(path=paths_full, columns_to_keep=columns_to_keep, dtype=dtype, filters=filters, 
-              worker_count=worker_count, multiprocessing_method=multiprocessing_method)
-    return df
+    return load(
+        path=paths_full,
+        columns_to_keep=columns_to_keep,
+        dtype=dtype,
+        filters=filters,
+        worker_count=worker_count,
+        multiprocessing_method=multiprocessing_method,
+    )

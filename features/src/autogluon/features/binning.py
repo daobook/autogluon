@@ -17,7 +17,7 @@ def generate_bins(X_features: DataFrame, features_to_bin: list, ideal_bins: int 
     starting_cats = 1000
     bin_index_starting = [np.floor(X_len * (num + 1) / starting_cats) for num in range(starting_cats - 1)]
     bin_epsilon = 0.000000001
-    bin_mapping = dict()
+    bin_mapping = {}
     max_iterations = 20
     for column in features_to_bin:
         num_cats_initial = starting_cats
@@ -70,11 +70,19 @@ def get_bins(bins: Series, bin_index: list, bin_epsilon: float) -> IntervalIndex
     bins_2 = bins.iloc[bin_index]
     bins_3 = list(bins_2.values)
     bins_unique = sorted(list(set(bins_3)))
-    bins_with_epsilon_max = set([i for i in bins_unique] + [i - bin_epsilon for i in bins_unique if i == max_val])
-    removal_bins = set([bins_unique[index - 1] for index, i in enumerate(bins_unique[1:], start=1) if i == max_val])
+    bins_with_epsilon_max = set(
+        list(bins_unique)
+        + [i - bin_epsilon for i in bins_unique if i == max_val]
+    )
+
+    removal_bins = {
+        bins_unique[index - 1]
+        for index, i in enumerate(bins_unique[1:], start=1)
+        if i == max_val
+    }
+
     bins_4 = sorted(list(bins_with_epsilon_max - removal_bins))
     bins_5 = [np.inf if (x == max_val) else x for x in bins_4]
     bins_6 = sorted(list(set([-np.inf] + bins_5 + [np.inf])))
     bins_7 = [(bins_6[i], bins_6[i + 1]) for i in range(len(bins_6) - 1)]
-    interval_index = IntervalIndex.from_tuples(bins_7)
-    return interval_index
+    return IntervalIndex.from_tuples(bins_7)

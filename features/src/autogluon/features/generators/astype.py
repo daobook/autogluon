@@ -37,7 +37,7 @@ class AsTypeFeatureGenerator(AbstractFeatureGenerator):
     # TODO: consider returning self._transform(X) if we allow users to specify real dtypes as input
     def _fit_transform(self, X: DataFrame, **kwargs) -> (DataFrame, dict):
         feature_type_raw_cur_dict = get_type_map_raw(X)
-        feature_map_to_update = dict()
+        feature_map_to_update = {}
         type_map_special = self.feature_metadata_in.get_type_map_special()
         for feature in self.features_in:
             feature_type_raw = self.feature_metadata_in.get_feature_type_raw(feature)
@@ -46,16 +46,22 @@ class AsTypeFeatureGenerator(AbstractFeatureGenerator):
                 self._log(30, f'\tWARNING: Actual dtype differs from dtype in FeatureMetadata for feature "{feature}". Actual dtype: {feature_type_raw_cur} | Expected dtype: {feature_type_raw}')
                 feature_map_to_update[feature] = feature_type_raw
         if feature_map_to_update:
-            self._log(30, f'\tWARNING: Forcefully converting features to expected dtypes. Please manually align the input data with the expected dtypes if issues occur.')
+            self._log(
+                30,
+                '\tWARNING: Forcefully converting features to expected dtypes. Please manually align the input data with the expected dtypes if issues occur.',
+            )
+
             X = X.astype(feature_map_to_update)
 
-        self._bool_features = dict()
+        self._bool_features = {}
         if self._convert_bool:
             for feature in self.features_in:
-                if S_BOOL not in type_map_special[feature]:
-                    if len(X[feature].unique()) == 2:
-                        feature_bool_val = get_bool_true_val(X[feature])
-                        self._bool_features[feature] = feature_bool_val
+                if (
+                    S_BOOL not in type_map_special[feature]
+                    and len(X[feature].unique()) == 2
+                ):
+                    feature_bool_val = get_bool_true_val(X[feature])
+                    self._bool_features[feature] = feature_bool_val
 
         if self._bool_features:
             self._log(20, f'\tNote: Converting {len(self._bool_features)} features to boolean dtype as they only contain 2 unique values.')
@@ -83,7 +89,10 @@ class AsTypeFeatureGenerator(AbstractFeatureGenerator):
                     # TODO: Add unit test for this situation, to confirm it is handled properly.
                     with_null = null_count[null_count]
                     with_null_features = list(with_null.index)
-                    logger.warning(f'WARNING: Int features without null values at train time contain null values at inference time! Imputing nulls to 0. To avoid this, pass the features as floats during fit!')
+                    logger.warning(
+                        'WARNING: Int features without null values at train time contain null values at inference time! Imputing nulls to 0. To avoid this, pass the features as floats during fit!'
+                    )
+
                     logger.warning(f'WARNING: Int features with nulls: {with_null_features}')
                     X[with_null_features] = X[with_null_features].fillna(0)
 

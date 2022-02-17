@@ -47,10 +47,9 @@ class EarlyStoppingCallbackWithTimeLimit(TrackerCallback):
         super().before_fit()
 
     def after_epoch(self):
-        if self.best_epoch_stop is not None:
-            if self.epoch >= self.best_epoch_stop:
-                logger.log(20, f'\tStopping at the best epoch learned earlier - {self.epoch}.')
-                raise CancelFitException()
+        if self.best_epoch_stop is not None and self.epoch >= self.best_epoch_stop:
+            logger.log(20, f'\tStopping at the best epoch learned earlier - {self.epoch}.')
+            raise CancelFitException()
 
         super().after_epoch()
 
@@ -88,11 +87,10 @@ class AgSaveModelCallback(TrackerCallback):
 
     def after_epoch(self):
         "Compare the value monitored to its best score and save if best."
-        if self.best_epoch_stop is not None:  # use epoch learned earlier
-            if self.epoch >= self.best_epoch_stop:
-                logger.log(15, f'Saving model model at the best epoch learned earlier - {self.epoch}.')
-                self.best_epoch = self.epoch
-                self.learn.save(f'{self.fname}')
+        if self.best_epoch_stop is not None and self.epoch >= self.best_epoch_stop:
+            logger.log(15, f'Saving model model at the best epoch learned earlier - {self.epoch}.')
+            self.best_epoch = self.epoch
+            self.learn.save(f'{self.fname}')
         if self.every_epoch:
             self._save(f'{self.fname}_{self.epoch}')
         else:  # every improvement

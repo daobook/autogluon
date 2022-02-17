@@ -17,7 +17,7 @@ def load(path, format=None, verbose=True, **kwargs):
     if format == 'pointer':
         content_path = load_pointer.get_pointer_content(path)
         if content_path == path:
-            raise RecursionError('content_path == path! : ' + str(path))
+            raise RecursionError(f'content_path == path! : {str(path)}')
         return load(path=content_path)
     elif format == 's3':
         if verbose: logger.log(15, 'Loading: %s' % path)
@@ -33,12 +33,11 @@ def load(path, format=None, verbose=True, **kwargs):
     if compression_fn_kwargs is None:
         compression_fn_kwargs = {}
 
-    if compression_fn in compression_fn_map:
-        with compression_fn_map[compression_fn]['open'](validated_path, 'rb', **compression_fn_kwargs) as fin:
-            object = pickle.load(fin)
-    else:
+    if compression_fn not in compression_fn_map:
         raise ValueError(f'compression_fn={compression_fn} or compression_fn_kwargs={compression_fn_kwargs} are not valid. Valid function values: {compression_fn_map.keys()}')
 
+    with compression_fn_map[compression_fn]['open'](validated_path, 'rb', **compression_fn_kwargs) as fin:
+        object = pickle.load(fin)
     return object
 
 
@@ -50,7 +49,7 @@ def load_with_fn(path, pickle_fn, format=None, verbose=True):
     if format == 'pointer':
         content_path = load_pointer.get_pointer_content(path)
         if content_path == path:
-            raise RecursionError('content_path == path! : ' + str(path))
+            raise RecursionError(f'content_path == path! : {str(path)}')
         return load_with_fn(content_path, pickle_fn)
     elif format == 's3':
         if verbose: logger.log(15, 'Loading: %s' % path)

@@ -31,7 +31,7 @@ def sample_bins_uniformly(y_pred_proba: pd.DataFrame, df_indexes):
     class_keys = list(class_value_counts.keys())
     test_pseudo_indices = pd.Series(data=False, index=y_pred_proba.index)
 
-    if len(class_keys) < 1:
+    if not class_keys:
         return test_pseudo_indices
 
     logging.log(15, f'Taking {min_count} rows from the following classes: {class_keys}')
@@ -86,9 +86,9 @@ def filter_pseudo(y_pred_proba_og, problem_type,
         y_pred_proba_max = y_pred_proba_og.max(axis=1)
         curr_threshold = threshold
         curr_percentage = (y_pred_proba_max >= curr_threshold).mean()
-        num_rows = len(y_pred_proba_max)
-
         if curr_percentage > max_proportion_prob or curr_percentage < min_proportion_prob:
+            num_rows = len(y_pred_proba_max)
+
             if curr_percentage > max_proportion_prob:
                 num_rows_threshold = max(np.ceil(max_proportion_prob * num_rows), 1)
             else:
@@ -132,9 +132,6 @@ def filter_ensemble_pseudo(predictor, unlabeled_data: pd.DataFrame, num_models: 
 
     if num_models < 2:
         raise Exception('Ensemble pseudo labeling was enabled, but only one model was trained')
-
-    if num_models != num_models:
-        logging.warning(f'Ensemble pseudo labeling expected {original_k}, but only {num_models} fit.')
 
     if predictor.problem_type in PROBLEM_TYPES_CLASSIFICATION:
         return filter_ensemble_classification(predictor=predictor, unlabeled_data=unlabeled_data,

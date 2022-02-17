@@ -10,8 +10,7 @@ logger = logging.getLogger(__name__)
 def save(path, obj, sanitize=True):
     if sanitize:
         obj = sanitize_object_to_primitives(obj=obj)
-    dirname = os.path.dirname(path)
-    if dirname:
+    if dirname := os.path.dirname(path):
         os.makedirs(dirname, exist_ok=True)
     with open(path, 'w') as fp:
         json.dump(obj, fp, indent=2)
@@ -19,9 +18,10 @@ def save(path, obj, sanitize=True):
 
 def sanitize_object_to_primitives(obj):
     if isinstance(obj, dict):
-        obj_sanitized = dict()
-        for key, val in obj.items():
-            obj_sanitized[key] = sanitize_object_to_primitives(val)
+        obj_sanitized = {
+            key: sanitize_object_to_primitives(val) for key, val in obj.items()
+        }
+
     else:
         try:
             json.dumps(obj)

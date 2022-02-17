@@ -42,17 +42,15 @@ def verbosity2loglevel(verbosity):
     """ Translates verbosity to logging level. Suppresses warnings if verbosity = 0. """
     if verbosity <= 0:  # only errors
         # print("Caution: all warnings suppressed")
-        log_level = 40
+        return 40
     elif verbosity == 1:  # only warnings and critical print statements
-        log_level = 25
+        return 25
     elif verbosity == 2:  # key print statements which should be shown by default
-        log_level = 20
+        return 20
     elif verbosity == 3:  # more-detailed printing
-        log_level = 15
+        return 15
     else:
-        log_level = 10  # print everything (ie. debug mode)
-
-    return log_level
+        return 10
 
 
 def set_logger_verbosity(verbosity: int, logger=None):
@@ -70,10 +68,11 @@ def _check_if_kaggle() -> bool:
     Returns True if inside Kaggle Notebook
     """
     root_logger = logging.getLogger()
-    for handler in root_logger.root.handlers[:]:
-        if hasattr(handler, 'baseFilename') and (handler.baseFilename == '/tmp/kaggle.log'):
-            return True
-    return False
+    return any(
+        hasattr(handler, 'baseFilename')
+        and (handler.baseFilename == '/tmp/kaggle.log')
+        for handler in root_logger.root.handlers[:]
+    )
 
 
 def _add_stream_handler():

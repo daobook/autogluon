@@ -105,9 +105,7 @@ class _PredictScorer(Scorer):
         if isinstance(y_pred, list):
             y_pred = np.array(y_pred)
 
-        if len(y_pred.shape) == 1 or y_pred.shape[1] == 1:
-            pass  # must be regression, all other task types would return at least two probabilities
-        else:
+        if len(y_pred.shape) != 1 and y_pred.shape[1] != 1:
             type_true = type_of_target(y_true)
             if type_true == 'continuous':
                 pass
@@ -279,9 +277,11 @@ class _QuantileScorer(Scorer):
             quantile_levels = np.array(quantile_levels)
         type_true = type_of_target(y_true)
 
-        if len(y_pred.shape) == 2 or y_pred.shape[1] >= 1 or type_true == 'continuous':
-            pass  # must be quantile regression, all other task types would return at least two probabilities
-        else:
+        if (
+            len(y_pred.shape) != 2
+            and y_pred.shape[1] < 1
+            and type_true != 'continuous'
+        ):
             raise ValueError(type_true)
 
         if sample_weight is not None:
@@ -505,7 +505,7 @@ pac_score = make_scorer('pac_score',
                         greater_is_better=True,
                         needs_proba=True)
 
-REGRESSION_METRICS = dict()
+REGRESSION_METRICS = {}
 for scorer in [r2, mean_squared_error, root_mean_squared_error, mean_absolute_error,
                    median_absolute_error, spearmanr, pearsonr]:
     if scorer.name in REGRESSION_METRICS:
@@ -518,7 +518,7 @@ for scorer in [r2, mean_squared_error, root_mean_squared_error, mean_absolute_er
                              f'Consider to use a different alias.')
         REGRESSION_METRICS[alias] = scorer
 
-QUANTILE_METRICS = dict()
+QUANTILE_METRICS = {}
 for scorer in [pinball_loss]:
     if scorer.name in QUANTILE_METRICS:
         raise ValueError(f'Duplicated score name found! scorer={scorer}, name={scorer.name}. '
@@ -530,7 +530,7 @@ for scorer in [pinball_loss]:
                              f'Consider to use a different alias.')
         QUANTILE_METRICS[alias] = scorer
 
-CLASSIFICATION_METRICS = dict()
+CLASSIFICATION_METRICS = {}
 for scorer in [accuracy, balanced_accuracy, mcc, roc_auc, roc_auc_ovo_macro, average_precision,
                log_loss, pac_score, quadratic_kappa]:
     CLASSIFICATION_METRICS[scorer.name] = scorer
@@ -555,30 +555,29 @@ def get_metric(metric, problem_type=None, metric_type=None) -> Scorer:
     Performs basic check for metric compatibility with given problem type."""
     all_available_metric_names = list(CLASSIFICATION_METRICS.keys()) + list(REGRESSION_METRICS.keys()) + list(QUANTILE_METRICS.keys()) + ['soft_log_loss']
 
-    if metric is not None and isinstance(metric, str):
-        if metric in CLASSIFICATION_METRICS:
-            if problem_type is not None and problem_type not in PROBLEM_TYPES_CLASSIFICATION:
-                raise ValueError(f"{metric_type}={metric} can only be used for classification problems")
-            return CLASSIFICATION_METRICS[metric]
-        elif metric in REGRESSION_METRICS:
-            if problem_type is not None and problem_type not in PROBLEM_TYPES_REGRESSION:
-                raise ValueError(f"{metric_type}={metric} can only be used for regression problems")
-            return REGRESSION_METRICS[metric]
-        elif metric in QUANTILE_METRICS:
-            if problem_type is not None and problem_type != QUANTILE:
-                raise ValueError(f"{metric_type}={metric} can only be used for quantile problems")
-            return QUANTILE_METRICS[metric]
-        elif metric == 'soft_log_loss':
-            if problem_type == QUANTILE:
-                raise ValueError(f"{metric_type}={metric} can not be used for quantile problems")
-            # Requires mxnet
-            from .softclass_metrics import soft_log_loss
-            return soft_log_loss
-        else:
-            raise ValueError(
-                f"{metric} is an unknown metric, all available metrics are "
-                f"'{all_available_metric_names}'. You can also refer to "
-                f"autogluon.core.metrics to see how to define your own {metric_type} function"
-            )
-    else:
+    if metric is None or not isinstance(metric, str):
         return metric
+    if metric in CLASSIFICATION_METRICS:
+        if problem_type is not None and problem_type not in PROBLEM_TYPES_CLASSIFICATION:
+            raise ValueError(f"{metric_type}={metric} can only be used for classification problems")
+        return CLASSIFICATION_METRICS[metric]
+    elif metric in REGRESSION_METRICS:
+        if problem_type is not None and problem_type not in PROBLEM_TYPES_REGRESSION:
+            raise ValueError(f"{metric_type}={metric} can only be used for regression problems")
+        return REGRESSION_METRICS[metric]
+    elif metric in QUANTILE_METRICS:
+        if problem_type is not None and problem_type != QUANTILE:
+            raise ValueError(f"{metric_type}={metric} can only be used for quantile problems")
+        return QUANTILE_METRICS[metric]
+    elif metric == 'soft_log_loss':
+        if problem_type == QUANTILE:
+            raise ValueError(f"{metric_type}={metric} can not be used for quantile problems")
+        # Requires mxnet
+        from .softclass_metrics import soft_log_loss
+        return soft_log_loss
+    else:
+        raise ValueError(
+            f"{metric} is an unknown metric, all available metrics are "
+            f"'{all_available_metric_names}'. You can also refer to "
+            f"autogluon.core.metrics to see how to define your own {metric_type} function"
+        )

@@ -44,11 +44,8 @@ class DropUniqueFeatureGenerator(AbstractFeatureGenerator):
             elif feature_metadata.get_feature_type_raw(column) in [R_CATEGORY, R_OBJECT]\
                     and (unique_value_count > max_unique_value_count):
                 special_types = feature_metadata.get_feature_types_special(column)
-                if S_TEXT in special_types:
+                if S_TEXT in special_types or S_IMAGE_PATH in special_types:
                     # We should not drop a text column
-                    continue
-                elif S_IMAGE_PATH in special_types:
-                    # We should not drop an image path column
                     continue
                 else:
                     features_to_drop.append(column)

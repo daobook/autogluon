@@ -29,9 +29,7 @@ class SimpleES(AbstractES):
         return self.early_stop(cur_round, is_best=is_best)
 
     def early_stop(self, cur_round, is_best=False):
-        if is_best:
-            return False
-        return cur_round - self.best_round >= self.patience
+        return False if is_best else cur_round - self.best_round >= self.patience
 
 
 # TODO: Add time component
@@ -95,9 +93,7 @@ class AdaptiveES(AbstractES):
         Returns True if (cur_round - self.best_round) equals or exceeds self.patience, otherwise returns False.
         This can be used to indicate if training should stop.
         """
-        if is_best:
-            return False
-        return cur_round - self.best_round >= self.patience
+        return False if is_best else cur_round - self.best_round >= self.patience
 
     def _update_patience(self, best_round):
         return min(

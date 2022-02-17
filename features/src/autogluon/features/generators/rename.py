@@ -55,11 +55,8 @@ class RenameFeatureGenerator(AbstractFeatureGenerator):
             X_columns_new = [self._name_prefix + column for column in X_columns_new]
         if self._name_suffix:
             X_columns_new = [column + self._name_suffix for column in X_columns_new]
-        if X_columns_orig != X_columns_new:
-            is_updated_name = True
-        else:
-            is_updated_name = False
-        column_rename_map = {orig: new for orig, new in zip(X_columns_orig, X_columns_new)}
+        is_updated_name = X_columns_orig != X_columns_new
+        column_rename_map = dict(zip(X_columns_orig, X_columns_new))
         return column_rename_map, is_updated_name
 
     @staticmethod

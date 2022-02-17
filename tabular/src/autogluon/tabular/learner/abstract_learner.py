@@ -139,7 +139,7 @@ class AbstractLearner:
         self.path, self.model_context, self.save_path = self.create_contexts(path_context)
 
     def create_contexts(self, path_context):
-        model_context = path_context + 'models' + os.path.sep
+        model_context = f'{path_context}models{os.path.sep}'
         save_path = path_context + self.learner_file_name
         return path_context, model_context, save_path
 
@@ -154,10 +154,7 @@ class AbstractLearner:
         raise NotImplementedError
 
     def predict_proba(self, X: DataFrame, model=None, as_pandas=True, as_multiclass=True, inverse_transform=True):
-        if as_pandas:
-            X_index = copy.deepcopy(X.index)
-        else:
-            X_index = None
+        X_index = copy.deepcopy(X.index) if as_pandas else None
         y_pred_proba = self.load_trainer().predict_proba(self.transform_features(X), model=model)
         if inverse_transform:
             y_pred_proba = self.label_cleaner.inverse_transform_proba(y_pred_proba)
@@ -173,10 +170,7 @@ class AbstractLearner:
         return y_pred_proba
 
     def predict(self, X: DataFrame, model=None, as_pandas=True):
-        if as_pandas:
-            X_index = copy.deepcopy(X.index)
-        else:
-            X_index = None
+        X_index = copy.deepcopy(X.index) if as_pandas else None
         y_pred_proba = self.predict_proba(X=X, model=model, as_pandas=False, as_multiclass=False, inverse_transform=False)
         problem_type = self.label_cleaner.problem_type_transform or self.problem_type
         y_pred = get_pred_from_proba(y_pred_proba=y_pred_proba, problem_type=problem_type)
@@ -187,9 +181,8 @@ class AbstractLearner:
                 y_pred.name = self.label
             else:
                 y_pred = y_pred.values
-        else:
-            if as_pandas:
-                y_pred = pd.DataFrame(data=y_pred, columns=self.quantile_levels, index=X_index)
+        elif as_pandas:
+            y_pred = pd.DataFrame(data=y_pred, columns=self.quantile_levels, index=X_index)
         return y_pred
 
     def _validate_fit_input(self, X: DataFrame, **kwargs):
@@ -200,29 +193,31 @@ class AbstractLearner:
         self._validate_groups(X, X_val)
 
     def _validate_sample_weight(self, X, X_val):
-        if self.sample_weight is not None:
-            if self.sample_weight in [AUTO_WEIGHT, BALANCE_WEIGHT]:
-                prefix = f"Using predefined sample weighting strategy: {self.sample_weight}."
-                if self.weight_evaluation:
-                    prefix += " Warning: We do not recommend weight_evaluation=True with predefined sample weighting."
-            else:
-                if self.sample_weight not in X.columns:
-                    raise KeyError(f"sample_weight column '{self.sample_weight}' is missing from training data. Training data columns: {list(X.columns)}")
-                weight_vals = X[self.sample_weight]
-                if weight_vals.isna().sum() > 0:
-                    raise ValueError(f"Sample weights in column '{self.sample_weight}' cannot be nan")
-                if weight_vals.dtype.kind not in 'biuf':
-                    raise ValueError(f"Sample weights in column '{self.sample_weight}' must be numeric values")
-                if weight_vals.min() < 0:
-                    raise ValueError(f"Sample weights in column '{self.sample_weight}' must be nonnegative")
-                if self.weight_evaluation and X_val is not None and self.sample_weight not in X_val.columns:
-                    raise KeyError(f"sample_weight column '{self.sample_weight}' cannot be missing from validation data if weight_evaluation=True")
-                prefix = f"Values in column '{self.sample_weight}' used as sample weights instead of predictive features."
+        if self.sample_weight is None:
+            return
+
+        if self.sample_weight in [AUTO_WEIGHT, BALANCE_WEIGHT]:
+            prefix = f"Using predefined sample weighting strategy: {self.sample_weight}."
             if self.weight_evaluation:
-                suffix = " Evaluation will report weighted metrics, so ensure same column exists in test data."
-            else:
-                suffix = " Evaluation metrics will ignore sample weights, specify weight_evaluation=True to instead report weighted metrics."
-            logger.log(20, prefix+suffix)
+                prefix += " Warning: We do not recommend weight_evaluation=True with predefined sample weighting."
+        else:
+            if self.sample_weight not in X.columns:
+                raise KeyError(f"sample_weight column '{self.sample_weight}' is missing from training data. Training data columns: {list(X.columns)}")
+            weight_vals = X[self.sample_weight]
+            if weight_vals.isna().sum() > 0:
+                raise ValueError(f"Sample weights in column '{self.sample_weight}' cannot be nan")
+            if weight_vals.dtype.kind not in 'biuf':
+                raise ValueError(f"Sample weights in column '{self.sample_weight}' must be numeric values")
+            if weight_vals.min() < 0:
+                raise ValueError(f"Sample weights in column '{self.sample_weight}' must be nonnegative")
+            if self.weight_evaluation and X_val is not None and self.sample_weight not in X_val.columns:
+                raise KeyError(f"sample_weight column '{self.sample_weight}' cannot be missing from validation data if weight_evaluation=True")
+            prefix = f"Values in column '{self.sample_weight}' used as sample weights instead of predictive features."
+        if self.weight_evaluation:
+            suffix = " Evaluation will report weighted metrics, so ensure same column exists in test data."
+        else:
+            suffix = " Evaluation metrics will ignore sample weights, specify weight_evaluation=True to instead report weighted metrics."
+        logger.log(20, prefix+suffix)
 
     def _validate_groups(self, X, X_val):
         if self.groups is not None:
@@ -236,9 +231,8 @@ class AbstractLearner:
             logger.log(20, f"Values in column '{self.groups}' used as split folds instead of being automatically set. Bagged models will have {len(groups_vals.unique())} splits.")
 
     def get_inputs_to_stacker(self, dataset=None, model=None, base_models: list = None, use_orig_features=True):
-        if model is not None or base_models is not None:
-            if model is not None and base_models is not None:
-                raise AssertionError('Only one of `model`, `base_models` is allowed to be set.')
+        if model is not None and base_models is not None:
+            raise AssertionError('Only one of `model`, `base_models` is allowed to be set.')
 
         trainer = self.load_trainer()
         if dataset is None:
@@ -363,9 +357,11 @@ class AbstractLearner:
                 )
 
         if extra_scores:
-            series = []
-            for metric in extra_scores:
-                series.append(pd.Series(extra_scores[metric], name=metric))
+            series = [
+                pd.Series(value, name=metric)
+                for metric, value in extra_scores.items()
+            ]
+
             df_extra_scores = pd.concat(series, axis=1)
             extra_metrics_names = list(df_extra_scores.columns)
             df_extra_scores['model'] = df_extra_scores.index
@@ -382,9 +378,11 @@ class AbstractLearner:
                 if len(base_model_set) == 1:
                     pred_time_test[model] = pred_time_test_marginal[base_model_set[0]]
                 else:
-                    pred_time_test_full_num = 0
-                    for base_model in base_model_set:
-                        pred_time_test_full_num += pred_time_test_marginal[base_model]
+                    pred_time_test_full_num = sum(
+                        pred_time_test_marginal[base_model]
+                        for base_model in base_model_set
+                    )
+
                     pred_time_test[model] = pred_time_test_full_num
             else:
                 pred_time_test[model] = None
@@ -444,15 +442,11 @@ class AbstractLearner:
                                metric,
                                sample_weight=None):
         metric = get_metric(metric, self.problem_type, 'leaderboard_metric')
-        if metric.needs_pred:
-            if self.problem_type == BINARY:
-                # Use 1 and 0, otherwise f1 can crash due to unknown pos_label.
-                y_pred = get_pred_from_proba(y_pred_proba_internal, problem_type=self.problem_type)
-                y_tmp = y_internal
-            else:
-                y_pred = self.label_cleaner.inverse_transform_proba(y_pred_proba_internal, as_pred=True)
-                y_tmp = y
-        elif metric.needs_quantile:
+        if metric.needs_pred and self.problem_type == BINARY:
+            # Use 1 and 0, otherwise f1 can crash due to unknown pos_label.
+            y_pred = get_pred_from_proba(y_pred_proba_internal, problem_type=self.problem_type)
+            y_tmp = y_internal
+        elif metric.needs_pred or metric.needs_quantile:
             y_pred = self.label_cleaner.inverse_transform_proba(y_pred_proba_internal, as_pred=True)
             y_tmp = y
         else:
@@ -477,17 +471,14 @@ class AbstractLearner:
         return compute_weighted_metric(y_tmp, y_pred, metric, weights=sample_weight, weight_evaluation=self.weight_evaluation, quantile_levels=self.quantile_levels)
 
     def _validate_class_labels(self, y: Series):
-        null_count = y.isnull().sum()
-        if null_count:
+        if null_count := y.isnull().sum():
             raise ValueError(f'Labels cannot contain missing (nan) values. Found {null_count} missing label values.')
         if self.problem_type == MULTICLASS and not self.eval_metric.needs_pred:
             y_unique = np.unique(y)
             valid_class_set = set(self.class_labels)
-            unknown_classes = []
-            for cls in y_unique:
-                if cls not in valid_class_set:
-                    unknown_classes.append(cls)
-            if unknown_classes:
+            if unknown_classes := [
+                cls for cls in y_unique if cls not in valid_class_set
+            ]:
                 # log_loss / pac_score
                 raise ValueError(f'Multiclass scoring with eval_metric=\'{self.eval_metric.name}\' does not support unknown classes. Unknown classes: {unknown_classes}')
 

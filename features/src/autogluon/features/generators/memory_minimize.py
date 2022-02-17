@@ -39,10 +39,13 @@ class CategoryMemoryMinimizeFeatureGenerator(AbstractFeatureGenerator):
 
     def _minimize_categorical_memory_usage(self, X: DataFrame):
         if self._category_maps:
-            X_renamed = dict()
-            for column in self._category_maps:
-                # rename_categories(inplace=True) is faster but it is deprecated as of pandas 1.3.0
-                X_renamed[column] = X[column].cat.rename_categories(self._category_maps[column])
+            X_renamed = {
+                column: X[column].cat.rename_categories(
+                    self._category_maps[column]
+                )
+                for column in self._category_maps
+            }
+
             X = DataFrame(X_renamed)
         return X
 

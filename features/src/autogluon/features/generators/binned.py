@@ -39,9 +39,15 @@ class BinnedFeatureGenerator(AbstractFeatureGenerator):
         return binning.generate_bins(X, list(X.columns), ideal_bins=self.num_bins)
 
     def _transform_bin(self, X: DataFrame):
-        X_out = dict()
-        for column in self._bin_map:
-            X_out[column] = binning.bin_column(series=X[column], bins=self._bin_map[column], dtype=self._astype_map[column])
+        X_out = {
+            column: binning.bin_column(
+                series=X[column],
+                bins=self._bin_map[column],
+                dtype=self._astype_map[column],
+            )
+            for column in self._bin_map
+        }
+
         X_out = pd.DataFrame(X_out, index=X.index)
         return X_out
 

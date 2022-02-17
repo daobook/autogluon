@@ -15,14 +15,9 @@ def fixedvals_from_searchspaces(params):
         params = params.copy()
         for hyperparam in bad_keys:
             params[hyperparam] = hp_default_value(params[hyperparam])
-        return params
-    else:
-        return params
+    return params
 
 
 def hp_default_value(hp_value):
     """Extracts default fixed value from hyperparameter search space hp_value to use a fixed value instead of a search space."""
-    if not isinstance(hp_value, Space):
-        return hp_value
-    else:
-        return hp_value.default
+    return hp_value if not isinstance(hp_value, Space) else hp_value.default

@@ -45,7 +45,7 @@ class DatetimeFeatureGenerator(AbstractFeatureGenerator):
         ])
 
     def _compute_fillna_map(self, X: DataFrame):
-        fillna_map = dict()
+        fillna_map = {}
         for datetime_feature in self.features_in:
             datetime_series = pd.to_datetime(X[datetime_feature], errors='coerce')
 
@@ -66,7 +66,10 @@ class DatetimeFeatureGenerator(AbstractFeatureGenerator):
             # Most of the pandas Series.dt properties are here, a few are omitted (e.g. is_month_start) if they can be inferred
             # from other features.
             for feature in self.features:
-                X_datetime[datetime_feature + '.' + feature] = getattr(X_datetime[datetime_feature].dt, feature).astype(int)
+                X_datetime[f'{datetime_feature}.{feature}'] = getattr(
+                    X_datetime[datetime_feature].dt, feature
+                ).astype(int)
+
 
             X_datetime[datetime_feature] = pd.to_numeric(X_datetime[datetime_feature])
 

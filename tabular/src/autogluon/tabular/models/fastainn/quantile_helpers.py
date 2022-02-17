@@ -8,9 +8,11 @@ from sklearn.isotonic import IsotonicRegression
 def isotonic(input_data, quantile_list):
     quantile_list = np.array(quantile_list).reshape(-1)
     batch_size = input_data.shape[0]
-    new_output_data = []
-    for i in range(batch_size):
-        new_output_data.append(IsotonicRegression().fit_transform(quantile_list, input_data[i]))
+    new_output_data = [
+        IsotonicRegression().fit_transform(quantile_list, input_data[i])
+        for i in range(batch_size)
+    ]
+
     return np.stack(new_output_data, 0)
 
 

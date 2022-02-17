@@ -30,7 +30,7 @@ def test_search_space_dot_key():
     search_space = {'model.name': Categorical('mxnet', 'pytorch')}
 
     def train_fn(args, reporter):
-        assert args['model.name'] == 'mxnet' or args['model.name'] == 'pytorch'
+        assert args['model.name'] in ['mxnet', 'pytorch']
 
     scheduler = LocalSequentialScheduler(train_fn, search_space=search_space, num_trials=2)
     scheduler.run()

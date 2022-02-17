@@ -65,7 +65,7 @@ class AbstractTrainer:
         self.quantile_levels = quantile_levels
         self.feature_prune = False  # will be set to True if feature-pruning is turned on.
         self.low_memory = low_memory
-        self.bagged_mode = True if k_fold >= 2 else False
+        self.bagged_mode = k_fold >= 2
         if self.bagged_mode:
             self.k_fold = k_fold  # int number of folds to do model bagging, < 2 means disabled
             self.n_repeats = n_repeats
@@ -108,33 +108,33 @@ class AbstractTrainer:
 
     @property
     def path_utils(self) -> str:
-        return self.path_root + 'utils' + os.path.sep
+        return f'{self.path_root}utils{os.path.sep}'
 
     @property
     def path_data(self) -> str:
-        return self.path_utils + 'data' + os.path.sep
+        return f'{self.path_utils}data{os.path.sep}'
 
     def load_X(self):
         if self._X_saved:
-            path = self.path_data + 'X.pkl'
+            path = f'{self.path_data}X.pkl'
             return load_pkl.load(path=path)
         return None
 
     def load_X_val(self):
         if self._X_val_saved:
-            path = self.path_data + 'X_val.pkl'
+            path = f'{self.path_data}X_val.pkl'
             return load_pkl.load(path=path)
         return None
 
     def load_y(self):
         if self._y_saved:
-            path = self.path_data + 'y.pkl'
+            path = f'{self.path_data}y.pkl'
             return load_pkl.load(path=path)
         return None
 
     def load_y_val(self):
         if self._y_val_saved:
-            path = self.path_data + 'y_val.pkl'
+            path = f'{self.path_data}y_val.pkl'
             return load_pkl.load(path=path)
         return None
 
@@ -147,22 +147,22 @@ class AbstractTrainer:
         return X, y, X_val, y_val
 
     def save_X(self, X, verbose=True):
-        path = self.path_data + 'X.pkl'
+        path = f'{self.path_data}X.pkl'
         save_pkl.save(path=path, object=X, verbose=verbose)
         self._X_saved = True
 
     def save_X_val(self, X, verbose=True):
-        path = self.path_data + 'X_val.pkl'
+        path = f'{self.path_data}X_val.pkl'
         save_pkl.save(path=path, object=X, verbose=verbose)
         self._X_val_saved = True
 
     def save_y(self, y, verbose=True):
-        path = self.path_data + 'y.pkl'
+        path = f'{self.path_data}y.pkl'
         save_pkl.save(path=path, object=y, verbose=verbose)
         self._y_saved = True
 
     def save_y_val(self, y, verbose=True):
-        path = self.path_data + 'y_val.pkl'
+        path = f'{self.path_data}y_val.pkl'
         save_pkl.save(path=path, object=y, verbose=verbose)
         self._y_val_saved = True
 
@@ -187,8 +187,9 @@ class AbstractTrainer:
 
     def get_max_level(self, stack_name: str = None, models: List[str] = None) -> int:
         models = self.get_model_names(stack_name=stack_name, models=models)
-        models_attribute_dict = self.get_models_attribute_dict(attribute='level', models=models)
-        if models_attribute_dict:
+        if models_attribute_dict := self.get_models_attribute_dict(
+            attribute='level', models=models
+        ):
             return max(list(models_attribute_dict.values()))
         else:
             return -1
@@ -518,11 +519,10 @@ class AbstractTrainer:
 
             if fit:
                 model_type = self.get_model_attribute(model=model_name, attribute='type')
-                if issubclass(model_type, BaggedEnsembleModel):
-                    model_path = self.get_model_attribute(model=model_name, attribute='path')
-                    model_pred_proba_dict[model_name] = model_type.load_oof(path=model_path)
-                else:
+                if not issubclass(model_type, BaggedEnsembleModel):
                     raise AssertionError(f'Model {model_name} must be a BaggedEnsembleModel to return oof_pred_proba')
+                model_path = self.get_model_attribute(model=model_name, attribute='path')
+                model_pred_proba_dict[model_name] = model_type.load_oof(path=model_path)
             else:
                 model = self.load_model(model_name=model_name)
                 if isinstance(model, StackerEnsembleModel):
@@ -584,15 +584,16 @@ class AbstractTrainer:
             else:
                 X = X_stacker
         else:
-            dummy_stackers = {}
-            for level in range(level_start, level_end+1):
-                if level > 1:
-                    dummy_stackers[level] = self._get_dummy_stacker(level=level, model_levels=model_levels, use_orig_features=True)
+            dummy_stackers = {
+                level: self._get_dummy_stacker(
+                    level=level, model_levels=model_levels, use_orig_features=True
+                )
+                for level in range(level_start, level_end + 1)
+                if level > 1
+            }
+
             for level in range(level_start, level_end):
-                if level > 1:
-                    cols_to_drop = dummy_stackers[level].stack_columns
-                else:
-                    cols_to_drop = []
+                cols_to_drop = dummy_stackers[level].stack_columns if level > 1 else []
                 X = dummy_stackers[level+1].preprocess(X=X, preprocess_nonadaptive=False, fit=False, compute_base_preds=True)
                 if len(cols_to_drop) > 0:
                     X = X.drop(cols_to_drop, axis=1)
@@ -613,7 +614,7 @@ class AbstractTrainer:
         if models is None:
             models = self.get_model_names()
 
-        model_levels = dict()
+        model_levels = {}
         ignore_models = []
         ignore_stack_names = [REFIT_FULL_NAME]
         for stack_name in ignore_stack_names:
@@ -684,10 +685,12 @@ class AbstractTrainer:
                     self._model_full_dict_val_score[model_trained] = self.get_model_attribute(model_name, 'val_score')
                 models_trained_full += models_trained
 
-        keys_to_del = []
-        for model in model_full_dict.keys():
-            if model_full_dict[model] not in models_trained_full:
-                keys_to_del.append(model)
+        keys_to_del = [
+            model
+            for model, value in model_full_dict.items()
+            if value not in models_trained_full
+        ]
+
         for key in keys_to_del:
             del model_full_dict[key]
         self.model_full_dict.update(model_full_dict)
@@ -796,7 +799,11 @@ class AbstractTrainer:
             logger.log(30, f'The following {len(model_names_already_persisted)} models were already persisted and will be ignored in the model loading process: {model_names_already_persisted}')
         model_names = [model_name for model_name in model_names if model_name not in model_names_already_persisted]
         if not model_names:
-            logger.log(30, f'No valid unpersisted models were specified to be persisted, so no change in model persistence was performed.')
+            logger.log(
+                30,
+                'No valid unpersisted models were specified to be persisted, so no change in model persistence was performed.',
+            )
+
             return []
         if max_memory is not None:
             info = self.get_models_info(model_names)
@@ -810,7 +817,11 @@ class AbstractTrainer:
             memory_proportion = total_mem_required / available_mem
             if memory_proportion > max_memory:
                 logger.log(30, f'Models will not be persisted in memory as they are expected to require {round(memory_proportion * 100, 2)}% of memory, which is greater than the specified max_memory limit of {round(max_memory*100, 2)}%.')
-                logger.log(30, f'\tModels will be loaded on-demand from disk to maintain safe memory usage, increasing inference latency. If inference latency is a concern, try to use smaller models or increase the value of max_memory.')
+                logger.log(
+                    30,
+                    '\tModels will be loaded on-demand from disk to maintain safe memory usage, increasing inference latency. If inference latency is a concern, try to use smaller models or increase the value of max_memory.',
+                )
+
                 return []
             else:
                 logger.log(20, f'Persisting {len(model_names)} models in memory. Models will require {round(memory_proportion*100, 2)}% of memory.')
@@ -835,12 +846,11 @@ class AbstractTrainer:
             return model_name
         if model_name in self.models.keys():
             return self.models[model_name]
-        else:
-            if path is None:
-                path = self.get_model_attribute(model=model_name, attribute='path')
-            if model_type is None:
-                model_type = self.get_model_attribute(model=model_name, attribute='type')
-            return model_type.load(path=path, reset_paths=self.reset_paths)
+        if path is None:
+            path = self.get_model_attribute(model=model_name, attribute='path')
+        if model_type is None:
+            model_type = self.get_model_attribute(model=model_name, attribute='type')
+        return model_type.load(path=path, reset_paths=self.reset_paths)
 
     def unpersist_models(self, model_names='all') -> list:
         if model_names == 'all':
@@ -855,7 +865,11 @@ class AbstractTrainer:
         if unpersisted_models:
             logger.log(20, f'Unpersisted {len(unpersisted_models)} models: {unpersisted_models}')
         else:
-            logger.log(30, f'No valid persisted models were specified to be unpersisted, so no change in model persistence was performed.')
+            logger.log(
+                30,
+                'No valid persisted models were specified to be unpersisted, so no change in model persistence was performed.',
+            )
+
         return unpersisted_models
 
     def generate_weighted_ensemble(self, X, y, level, base_model_names, k_fold=1, n_repeats=1, stack_name=None, hyperparameters=None,
@@ -872,11 +886,7 @@ class AbstractTrainer:
 
         if save_bag_folds is None:
             can_infer_dict = self.get_models_attribute_dict('can_infer', models=base_model_names)
-            if False in can_infer_dict.values():
-                save_bag_folds = False
-            else:
-                save_bag_folds = True
-
+            save_bag_folds = False not in can_infer_dict.values()
         weighted_ensemble_model, _ = get_models_func(
             hyperparameters={
                 'default': {

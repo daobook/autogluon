@@ -6,7 +6,7 @@ from ..utils import s3_utils
 logger = logging.getLogger(__name__)
 
 def list_bucket_s3(bucket):
-    logger.log(15, 'Listing s3 bucket: '+str(bucket))
+    logger.log(15, f'Listing s3 bucket: {str(bucket)}')
 
     s3bucket = boto3.resource('s3')
     my_bucket = s3bucket.Bucket(bucket)
@@ -39,10 +39,10 @@ def list_bucket_prefix_suffix_s3(bucket, prefix, suffix=None, banned_suffixes=No
     files = []
     for object_summary in my_bucket.objects.filter(Prefix=prefix):
         suffix_full = object_summary.key.split(prefix, 1)[1]
-        is_banned = False
-        for banned_suffix in banned_suffixes:
-            if banned_suffix in suffix_full:
-                is_banned = True
+        is_banned = any(
+            banned_suffix in suffix_full for banned_suffix in banned_suffixes
+        )
+
         if (not is_banned) and ((suffix is None) or (suffix in suffix_full)):
             files.append(object_summary.key)
 
@@ -59,10 +59,10 @@ def list_bucket_prefix_suffix_contains_s3(bucket, prefix, suffix=None, banned_su
     files = []
     for object_summary in my_bucket.objects.filter(Prefix=prefix):
         suffix_full = object_summary.key.split(prefix, 1)[1]
-        is_banned = False
-        for banned_suffix in banned_suffixes:
-            if banned_suffix in suffix_full:
-                is_banned = True
+        is_banned = any(
+            banned_suffix in suffix_full for banned_suffix in banned_suffixes
+        )
+
         if (not is_banned) and ((suffix is None) or (suffix in suffix_full)) and (contains is None or contains in suffix_full):
             files.append(object_summary.key)
 
@@ -71,11 +71,17 @@ def list_bucket_prefix_suffix_contains_s3(bucket, prefix, suffix=None, banned_su
 
 def load_multipart_s3(bucket, prefix, columns_to_keep=None, dtype=None, sample_count=None):
     files = list_bucket_prefix_s3(bucket, prefix)
-    files_cleaned = [file for file in files if prefix + '/part-' in file]
+    files_cleaned = [file for file in files if f'{prefix}/part-' in file]
     paths_full = [s3_utils.s3_bucket_prefix_to_path(bucket=bucket, prefix=file, version='s3') for file in files_cleaned]
     if sample_count is not None:
-        logger.log(15, 'Taking sample of '+str(sample_count)+' of '+str(len(paths_full))+' s3 files to load')
+        logger.log(
+            15,
+            f'Taking sample of {str(sample_count)} of {len(paths_full)}'
+            + ' s3 files to load',
+        )
+
         paths_full = paths_full[:sample_count]
 
-    df = load_pd.load(path=paths_full, columns_to_keep=columns_to_keep, dtype=dtype)
-    return df
+    return load_pd.load(
+        path=paths_full, columns_to_keep=columns_to_keep, dtype=dtype
+    )

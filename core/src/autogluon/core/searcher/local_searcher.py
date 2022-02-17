@@ -33,14 +33,10 @@ class LocalSearcher(object):
         self._params_default = self._get_params_default()
 
     def _get_params_default(self) -> dict:
-        params_default = dict()
+        params_default = {}
         for key, val in self.search_space.items():
             if isinstance(val, Space):
-                if isinstance(val, Categorical):
-                    # FIXME: Don't do this, fix the outer code to not require this
-                    d = val.data[0]
-                else:
-                    d = val.default
+                d = val.data[0] if isinstance(val, Categorical) else val.default
                 params_default[key] = d
         return params_default
 

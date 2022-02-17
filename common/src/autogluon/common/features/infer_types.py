@@ -49,8 +49,7 @@ def get_type_map_raw(df: DataFrame) -> dict:
 def get_type_map_special(X: DataFrame) -> dict:
     type_map_special = {}
     for column in X:
-        types_special = get_types_special(X[column])
-        if types_special:
+        if types_special := get_types_special(X[column]):
             type_map_special[column] = types_special
     return type_map_special
 

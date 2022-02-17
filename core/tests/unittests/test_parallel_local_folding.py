@@ -51,7 +51,7 @@ def _test_resource_allocation_and_time_limit(num_jobs, num_folds_parallel, time_
     num_gpus = get_gpu_count_all()
     time_start = time.time()
     fold_fitting_strategy = _construct_dummy_fold_strategy(time_limit=time_limit, num_folds_parallel=num_folds_parallel)
-    for i in range(num_jobs):
+    for _ in range(num_jobs):
         fold_fitting_strategy.schedule_fold_model_fit(dict())
     resources, batches, num_parallel_jobs = fold_fitting_strategy._get_resource_suggestions(len(fold_fitting_strategy.jobs))
     time_elapsed = time.time() - time_start
@@ -81,6 +81,6 @@ def test_resource_allocation_and_time_limit():
 
     searcher = LocalRandomSearcher(search_space=search_space)
 
-    for i in range(num_iterations):
+    for _ in range(num_iterations):
         config = searcher.get_config()
         _test_resource_allocation_and_time_limit(**config)

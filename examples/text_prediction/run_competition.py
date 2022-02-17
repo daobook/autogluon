@@ -127,10 +127,12 @@ def load_mercari_price_prediction(train_path, test_path):
 
     label_column = 'price'
     ignore_columns = ['train_id']
-    feature_columns = []
-    for column in sorted(train_df.columns):
-        if column != label_column and column not in ignore_columns:
-            feature_columns.append(column)
+    feature_columns = [
+        column
+        for column in sorted(train_df.columns)
+        if column != label_column and column not in ignore_columns
+    ]
+
     train_df = train_df[feature_columns + [label_column]]
     test_df = test_df[feature_columns]
     return train_df, test_df, label_column

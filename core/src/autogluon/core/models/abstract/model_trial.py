@@ -28,7 +28,7 @@ def model_trial(args,
     """
     try:
         if fit_kwargs is None:
-            fit_kwargs = dict()
+            fit_kwargs = {}
 
         model, args = prepare_inputs(args=args, model=model)
 

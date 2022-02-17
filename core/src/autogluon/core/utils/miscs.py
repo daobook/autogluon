@@ -8,11 +8,8 @@ def in_ipynb():
     if 'AG_DOCS' in os.environ and os.environ['AG_DOCS']:
         return False
     try:
-        cfg = get_ipython().config 
-        if 'IPKernelApp' in cfg:
-            return True
-        else:
-            return False
+        cfg = get_ipython().config
+        return 'IPKernelApp' in cfg
     except NameError:
         return False
 

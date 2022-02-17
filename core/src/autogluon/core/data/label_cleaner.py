@@ -55,14 +55,10 @@ class LabelCleaner:
         return np.promote_types(min_dtype, max_dtype)
 
     def to_transformed_dtype(self, y: Union[Series, np.ndarray, list]) -> Series:
-        if y.dtype.kind in ('i', 'u'):
-            return y.astype(self.transformed_dtype)
-        return y
+        return y.astype(self.transformed_dtype) if y.dtype.kind in ('i', 'u') else y
 
     def to_original_dtype(self, y: Union[Series, np.ndarray, list]) -> Series:
-        if y.dtype.kind in ('i', 'u'):
-            return y.astype(self.original_dtype)
-        return y
+        return y.astype(self.original_dtype) if y.dtype.kind in ('i', 'u') else y
 
     def transform(self, y: Union[Series, np.ndarray, list]) -> Series:
         y = self._convert_to_valid_series(y)
@@ -88,7 +84,7 @@ class LabelCleaner:
 
     @staticmethod
     def _convert_to_valid_series(y: Union[Series, np.ndarray, list]) -> Series:
-        if isinstance(y, np.ndarray) or isinstance(y, list):
+        if isinstance(y, (np.ndarray, list)):
             y = Series(y)
         elif isinstance(y, Series) and y.dtype.name == 'category':
             y = y.astype('object')
@@ -166,8 +162,7 @@ class LabelCleanerMulticlass(LabelCleaner):
     @staticmethod
     def _generate_categorical_mapping(y: Series) -> dict:
         categories = y.astype('category')
-        cat_mappings_dependent_var = dict(enumerate(categories.cat.categories))
-        return cat_mappings_dependent_var
+        return dict(enumerate(categories.cat.categories))
 
 
 # TODO: Expand print statement to multiclass as well
